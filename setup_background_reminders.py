@@ -10,14 +10,16 @@ from local_reminders import PLIST_FILE, WINDOWS_TASK, status
 
 ROOT = Path(__file__).resolve().parent
 AGENT_ID = 'org.medimate.local-reminders'
+WINDOWS_CREATE_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
 
 
 def python_interpreter():
     exe = Path(sys.executable)
     if platform.system() == 'Windows':
         pythonw = exe.with_name('pythonw.exe')
-        if pythonw.exists():
-            return pythonw
+        if not pythonw.is_file():
+            raise FileNotFoundError('pythonw.exe is required for silent Windows background reminders')
+        return pythonw
     return exe
 
 
@@ -29,11 +31,13 @@ def windows_task_command():
 
 def install_windows():
     subprocess.run(['schtasks.exe', '/Create', '/SC', 'MINUTE', '/MO', '1', '/IT',
-                    '/TN', WINDOWS_TASK, '/TR', windows_task_command(), '/F'], check=True)
+                    '/TN', WINDOWS_TASK, '/TR', windows_task_command(), '/F'],
+                   check=True, creationflags=WINDOWS_CREATE_NO_WINDOW)
 
 
 def uninstall_windows():
-    subprocess.run(['schtasks.exe', '/Delete', '/TN', WINDOWS_TASK, '/F'], check=True)
+    subprocess.run(['schtasks.exe', '/Delete', '/TN', WINDOWS_TASK, '/F'],
+                   check=True, creationflags=WINDOWS_CREATE_NO_WINDOW)
 
 
 def install_mac():
