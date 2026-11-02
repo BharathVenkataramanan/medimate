@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#faf9f5">
+  <meta name="description" content="Medication schedules, reminders and information, in one place.">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20261101-reminder-fix">
+  <title>MediMate | Medicines</title>
+</head>
+<body>
+<a class="skip-link" href="#main" data-i18n="skipToContent">Skip to main content</a>
+<div class="app-shell">
+  <aside class="sidebar" aria-label="Main navigation" data-i18n-aria-label="navAria">
+    <a class="brand" href="#home" data-route="home" aria-label="MediMate home" data-i18n-aria-label="navHomeAria">
+      <svg class="brand-symbol" viewBox="0 0 65 65" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="13" y="17" width="38" height="31" rx="15.5" transform="rotate(-38 32 32)"/><path d="M17 42 45 20"/><path d="M21 45 48 23" stroke-width="1" opacity=".4"/><path d="M6 13 10 7M52 49l6 6M50 11l7-3"/></g><path fill="#ecaa8a" d="M15 31C8 40 19 52 29 49l5-3-17-19z" opacity=".6"/></svg>
+      <span>medi<span class="brand-ink">mate</span><span class="brand-dot">.</span></span>
+    </a>
+    
+    <nav class="main-nav" aria-label="Sections" data-i18n-aria-label="navSectionsAria">
+      <button class="nav-link active" data-page="home"><span class="nav-icon">⌂</span><span data-i18n="navHome">Overview</span></button>
+      <button class="nav-link" data-page="medicines"><span class="nav-icon">✳</span><span data-i18n="navMeds">My medicines</span></button>
+      <button class="nav-link" data-page="adherence"><span class="nav-icon">▦</span><span data-i18n="navAdherence">Calendar</span></button>
+      <button class="nav-link" data-page="family"><span class="nav-icon">♡</span><span data-i18n="navFamily">Family</span></button>
+      <button class="nav-link" data-page="interactions"><span class="nav-icon">♢</span><span data-i18n="navSafety">Interaction check</span><span class="nav-alert-dot" id="conflict-nav-badge" hidden aria-hidden="true"></span></button>
+      <button class="nav-link" data-page="chat"><span class="nav-icon">✎</span><span data-i18n="navChat">Medication Q&A</span></button>
+      <button class="nav-link" data-page="settings"><span class="nav-icon">⚙</span><span data-i18n="navSettings">Settings</span></button>
+    </nav>
+
+  </aside>
+  <main class="workspace" id="main" tabindex="-1">
+    <header class="topbar">
+      
+      <div class="topbar-actions"><label for="profile-selector" class="sr-only" data-i18n="profileLabel">Family member</label><select id="profile-selector" class="profile-picker" aria-label="Family member" data-i18n-aria-label="profileAria"><option value="self">Me</option></select>
+        <label for="language" class="sr-only">Language</label>
+        <select id="language" class="language-picker" aria-label="Choose language" data-i18n-aria-label="languageAria"><option value="en">English</option><option value="ta">தமிழ்</option><option value="zh">中文</option><option value="ms">Bahasa Melayu</option></select>
+        <button class="icon-button notification-gear" id="notification-button" aria-label="Enable reminders" title="Enable reminders" data-i18n-aria-label="notificationAria" data-i18n-title="notificationAria"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8ZM10 20h4"/></svg></button>
+      </div>
+    </header>
+    <div id="due-reminder-banner" class="due-reminder-banner" role="status" aria-live="polite" hidden>
+      <span class="due-reminder-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8M10 20h4"/></svg></span>
+      <div class="due-reminder-copy"><span id="due-reminder-title" class="due-reminder-eyebrow">Medicine reminder</span><p id="due-reminder-message"></p></div>
+      <span id="due-reminder-time" class="due-reminder-time" aria-label="Scheduled time"></span>
+      <button id="due-reminder-taken" type="button" class="due-reminder-action" data-i18n="markTaken">Mark taken</button>
+    </div>
+
+    <section class="page active" id="page-home" aria-labelledby="home-title">
+      <div class="active-overview" id="active-overview" hidden><div><h1 data-i18n="navHome">Overview</h1><p id="active-profile-caption"></p></div><button class="outline-button" id="overview-add" type="button" data-i18n="addMedicine">+ Add a medicine</button></div>
+      <div class="hero paper-card" id="welcome-hero">
+        <div class="hero-copy">
+          
+          <h1 id="home-title"><span data-i18n="heroLine1">Your medicines:</span></h1>
+          
+          <button class="primary-button" id="hero-add"><span data-i18n="addMedicine">+ Add a medicine</span><span aria-hidden="true">↗</span></button>
+        </div>
+        <div class="hero-doodle" aria-hidden="true">
+          <svg viewBox="0 0 335 270"><path d="M59 184q-17-44 15-86 39-57 115-45 94 12 103 95 3 75-85 93-109 23-148-57z" fill="#d5dfca" opacity=".61"/><g fill="none" stroke="#27372e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><g transform="rotate(-30 158 149)"><rect x="111" y="77" width="94" height="142" rx="47" fill="#fffaf0"/><path d="M111 149h94"/><path d="M115 151v23q8 45 43 45 47 0 47-48v-22" fill="#efa98a"/><path d="M125 105q10-19 28-17" stroke-width="2" opacity=".55"/></g><path d="M67 59 75 42M85 65l17-11M238 64l13-20M257 84l20-5" stroke-width="2.5"/><path d="M64 217q17-13 31 0M243 223q13 9 26-2" stroke-width="2"/></g><path d="M199 86q10-22 16-43 6 18 25 23-23 4-41 20z" fill="#f5c579" stroke="#27372e" stroke-width="2" stroke-linejoin="round"/><circle cx="91" cy="207" r="5" fill="#efaa89"/><circle cx="271" cy="182" r="4" fill="#b5cbaa"/><path d="M92 133q-22-16-29-1" stroke="#b5cbaa" stroke-width="5" fill="none" stroke-linecap="round"/></svg>
+          
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card paper-card"><div class="stat-icon stat-icon-peach">✳</div><div><span class="stat-number" id="stat-meds">0</span><p data-i18n="statMeds">Medicines saved</p></div></div>
+        <div class="stat-card paper-card"><div class="stat-icon stat-icon-sage">◷</div><div><span class="stat-number" id="stat-today">0/0</span><p data-i18n="statToday">Doses today</p></div></div>
+        <div class="stat-card paper-card"><div class="stat-icon stat-icon-lilac" id="conflict-stat-icon">♢<span id="conflict-stat-dot" class="stat-alert-dot" hidden aria-hidden="true"></span></div><div><span class="stat-number" id="stat-flags">0</span><p data-i18n="statFlags">Potential warnings</p></div></div>
+      </div>
+      <div class="home-grid">
+        <section class="paper-card section-card"><div class="section-header"><div><h2 data-i18n="todayTitle">Today's reminders</h2></div><button class="text-button" data-go="medicines" data-i18n="viewAll">View all ↗</button></div><div id="today-list" class="dose-list"></div></section>
+        <section class="paper-card ask-spotlight"><svg class="ask-doodle" viewBox="0 0 150 108" aria-hidden="true"><g fill="none" stroke="#354439" stroke-width="2.2" stroke-linecap="round"><path d="M24 18h100a12 12 0 0 1 12 12v42a12 12 0 0 1-12 12H61l-25 17 4-17H24A12 12 0 0 1 12 72V30A12 12 0 0 1 24 18z"/><path d="M47 52c5-11 19-14 27-4s15 7 22-4M105 46h9"/><path d="m113 5 2 8m-11-4 6 6"/></g><circle cx="67" cy="46" r="13" fill="#e8bda2" opacity=".75"/></svg><h2 data-i18n="askTitle">Medicine questions</h2><button class="outline-button" data-go="chat"><span data-i18n="askButton">Ask a question</span> <span>↗</span></button></section>
+      </div>
+    </section>
+
+    <section class="page" id="page-medicines" aria-labelledby="med-title"><div class="page-heading"><div><h1 id="med-title" data-i18n="medTitle">Your medicines </h1></div><button class="primary-button" id="med-add" data-i18n="addMedicine">+ Add a medicine</button></div><div class="info-strip"><span>⌁</span><p data-i18n="medPrivacy">Saved privately in this browser. Clearing site data or switching devices may remove your medicines.</p></div><div id="medication-list" class="medication-grid"></div><details id="archived-wrapper" class="archived-wrapper" hidden><summary data-i18n="archivedTitle">Archived medicines</summary><div id="archived-list" class="medication-grid"></div></details></section>
+
+    <section class="page" id="page-family" aria-labelledby="family-title"><div class="page-heading"><div><h1 id="family-title" data-i18n="familyTitle">Family members</h1></div><button class="primary-button" id="family-add" type="button" data-i18n="addFamily">+ Add family member</button></div><div class="info-strip"><span>⌁</span><p data-i18n="familyPrivacy">Profiles share this browser. There are no passwords or separate accounts.</p></div><div id="family-list" class="family-grid"></div></section>
+
+    <section class="page" id="page-adherence" aria-labelledby="adherence-title"><div class="page-heading"><div><h1 id="adherence-title" data-i18n="adherenceTitle">Medication calendar</h1></div><button class="primary-button" id="export-xlsx" type="button" data-i18n="downloadExcel">Download Excel</button></div><div class="calendar-controls"><label for="calendar-month" data-i18n="monthLabel">Month</label><input type="month" id="calendar-month"><span class="calendar-legend"><span class="legend-mark legend-taken"></span><span data-i18n="statusTaken">Taken</span><span class="legend-mark legend-missed"></span><span data-i18n="statusMissed">Missed</span><span class="legend-mark legend-unconfirmed"></span><span data-i18n="statusNotLogged">Not logged</span></span><button class="outline-button calendar-expand" id="calendar-expand" type="button" aria-controls="monthly-calendar" aria-expanded="false" data-i18n="calendarExpand">Show all medicines</button></div><div class="paper-card section-card calendar-card"><div class="calendar-scroll"><div class="calendar-week-head" id="calendar-week-head"></div><div class="monthly-calendar" id="monthly-calendar"></div></div></div><div class="paper-card section-card day-log"><div class="section-header"><h2 id="day-log-title">Doses</h2></div><div id="day-log-list"></div></div><div class="soft-note" data-i18n="adherenceCaution">A missed dose is marked explicitly. An overdue dose without a check-off is labelled “Not logged”, not assumed missed. Never take an extra dose based only on this calendar.</div></section>
+
+    <section class="page" id="page-interactions" aria-labelledby="safety-title"><div class="page-heading"><div><h1 id="safety-title" data-i18n="safetyTitle">Interaction check</h1></div></div><div class="warning-banner safety-caution-line"><span class="warning-mark" aria-hidden="true">!</span><p data-i18n="safetyWarningText">No flagged interaction means only that none was found in the available records; it does not establish safety.</p></div><div class="section-card paper-card"><div class="section-header"><h2 data-i18n="safetyResultTitle">Potential interactions</h2><span id="safety-count" class="count-chip">0</span></div>
+      <div id="interaction-results" class="interactions-list"></div>
+      <div id="online-label-results" class="online-label-results" aria-live="polite"></div>
+    </div></section>
+
+    <section class="page" id="page-chat" aria-labelledby="chat-title"><div class="page-heading chat-heading"><div><h1 id="chat-title" data-i18n="chatTitle">Medication questions</h1></div></div><div class="chat-layout"><div class="paper-card conversation-card"><div class="chat-messages" id="messages" role="log" aria-live="polite"><div class="chat-welcome"><div class="assistant-avatar">✳</div><h3 data-i18n="chatWelcomeTitle">Ask about medication</h3><p data-i18n="chatWelcome">Ask me about medicine uses, side effects, precautions, and more. I only answer medication-related questions.</p></div></div><div class="suggestion-row" id="suggestions"><button class="suggestion-chip" data-prompt="example1" data-i18n="example1">What is paracetamol used for?</button><button class="suggestion-chip" data-prompt="example2" data-i18n="example2">What are common side effects?</button></div><form id="chat-form" class="chat-compose"><label for="chat-input" class="sr-only" data-i18n="chatQuestionAria">Medicine question</label><textarea id="chat-input" rows="2" maxlength="1300" data-i18n-placeholder="chatPlaceholder" placeholder="Ask me about a medicine..."></textarea><button class="send-button" id="send-button" type="submit" aria-label="Send message" data-i18n-aria-label="chatSendAria">➜</button></form><p class="chat-disclaimer" data-i18n="chatPrivacy">Only the question you send goes to OpenAI. Your medicine list stays on this device. Responses are general information, not individual medical advice.</p></div><aside class="chat-side"><div class="paper-card chat-tip"><div class="tip-icon">♡</div><h3 data-i18n="chatTipTitle">Medication safety</h3><p data-i18n="chatTipDesc">Always check with a pharmacist before changing your dose or combining medicines.</p></div><div class="tip-doodle" aria-hidden="true">✿ <span>〰</span> ✿</div></aside></div></section>
+
+    <section class="page" id="page-settings" aria-labelledby="settings-title"><div class="page-heading"><div><h1 id="settings-title" data-i18n="settingsTitle">Settings & privacy</h1></div></div><div class="settings-grid"><div class="paper-card settings-card"><h2 data-i18n="settingsReminders">Reminders</h2><p data-i18n="settingsRemindersDesc">Allow browser notifications while this website is open, or export reminders to your device calendar.</p><div class="settings-actions"><button class="outline-button" id="allow-notifications" data-i18n="enableNotifications">Enable notifications</button><button type="button" class="outline-button" id="test-notifications" data-i18n="testNotifications">Test notification</button><button class="outline-button" id="export-calendar" data-i18n="exportCalendar">Export calendar reminders</button></div><small id="notification-status" class="settings-hint"></small>
+  <div class="mac-reminder-row" id="mac-reminder-row">
+    <button type="button" class="outline-button" id="mac-reminders-toggle" data-i18n="macEnable">Enable background reminders</button>
+    <small id="mac-reminders-status" class="settings-hint" role="status" aria-live="polite"></small>
+    <small class="settings-hint" data-i18n="macDisclosure">Optional local helper. A private copy of medicine names, dose quantities, instructions, and schedules is kept on this computer for reminders. Notifications may reveal these details on the lock screen.</small>
+  </div></div><div class="paper-card settings-card"><h2 data-i18n="settingsData">Your data</h2><p data-i18n="settingsDataDesc">Your medicine entries and dose confirmations are stored locally in this browser. There is no account or cloud synchronization.</p><p class="settings-hint" data-i18n="settingsMedicineLookupPrivacy">Medicine or ingredient names may be checked online. Family names, doses and dose histories are not shared for these checks.</p><p class="settings-hint" data-i18n="settingsInteractionSources">Interaction data: DDInter 2.0 (CC BY-NC-SA 4.0, non-commercial use).</p><div class="settings-actions"><button class="outline-button" id="export-data" data-i18n="exportData">Download backup</button><button class="outline-button" id="import-data" data-i18n="importData">Import backup</button><input id="import-file" type="file" accept="application/json,.json" hidden></div><button class="danger-link" id="clear-data" data-i18n="clearData">Remove all local medicine data</button></div><div class="paper-card settings-card settings-card-full"><h2 data-i18n="settingsAI">AI & privacy</h2><div class="ai-status" id="ai-status"></div><p data-i18n="settingsAIDesc">AI questions are sent to OpenAI for processing. The medication registry is never included automatically. The API request sets store:false, but standard processing and retention policies may still apply.</p></div></div></section>
+    <footer class="footer"><span data-i18n="footerNote">Medication information does not replace advice from a pharmacist or doctor.</span></footer>
+  </main>
+</div>
+<div class="conflict-toast" id="conflict-toast" role="alert" aria-live="assertive" hidden><span class="conflict-toast-icon" aria-hidden="true">!</span><div class="conflict-toast-copy"><strong id="conflict-toast-title"></strong><p id="conflict-toast-description"></p></div><button type="button" class="conflict-review" id="conflict-review" data-i18n="reviewWarnings">Review</button><button type="button" class="conflict-close" id="conflict-close" aria-label="Dismiss warning" data-i18n-aria="dismissWarning">×</button></div>
+
+<dialog id="medicine-dialog" class="medicine-dialog"><form id="medicine-form" class="dialog-panel"><div class="dialog-top"><div><h2 id="dialog-title" data-i18n="dialogTitle">Add a medicine</h2></div><button type="button" class="close-button" id="close-dialog" aria-label="Close" data-i18n-aria-label="closeAria">×</button></div><input type="hidden" id="medicine-id"><label for="medicine-name" data-i18n="fieldName">Medicine name</label><div class="autocomplete-wrap"><input id="medicine-name" type="text" required maxlength="90" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="medicine-suggestions" aria-autocomplete="list" data-i18n-placeholder="namePlaceholder" placeholder="e.g. Metformin"><div id="medicine-suggestions" class="medicine-suggestions" role="listbox" hidden></div></div><div class="medicine-search-tools"><small data-i18n="nameSearchHelp">Confirm the medicine name on your prescription.</small></div><div class="medicine-search-status" id="medicine-search-status" role="status" aria-live="polite"></div><label for="medicine-strength" data-i18n="fieldStrength">Strength (as written on the label)</label><input id="medicine-strength" type="text" maxlength="80" data-i18n-placeholder="strengthPlaceholder" placeholder="e.g. 500 mg"><label for="medicine-times-picker" data-i18n="fieldTimes">Reminder times</label>
+<div id="medicine-times-picker" class="time-picker-list" role="group" aria-label="Reminder times" data-i18n-aria-label="fieldTimes"></div>
+<input id="medicine-times" type="hidden" value="">
+<button type="button" class="outline-button time-add" id="medicine-add-time" data-i18n="addTime">+ Add time</button>
+<small id="time-help" data-i18n="timeHelp">Choose the times on your prescription.</small>
+<div class="dose-input-group"><div><label for="medicine-quantity" data-i18n="fieldQuantity">Quantity per dose (optional)</label>
+<input id="medicine-quantity" type="number" min="0.25" max="50" step="0.25" inputmode="decimal" placeholder="e.g. 2"></div>
+<div><label for="medicine-dose-unit" data-i18n="fieldDoseUnit">Form</label>
+<select id="medicine-dose-unit"><option value="tablet" data-i18n="unitTablet">Tablet(s)</option><option value="capsule" data-i18n="unitCapsule">Capsule(s)</option><option value="mL" data-i18n="unitMl">mL</option><option value="drop" data-i18n="unitDrop">Drop(s)</option><option value="puff" data-i18n="unitPuff">Puff(s)</option><option value="sachet" data-i18n="unitSachet">Sachet(s)</option><option value="patch" data-i18n="unitPatch">Patch(es)</option><option value="spray" data-i18n="unitSpray">Spray(s)</option><option value="other" data-i18n="unitOther">Other unit</option></select></div></div><label for="medicine-frequency" data-i18n="fieldFrequency">Repeat</label>
+<select id="medicine-frequency" required>
+  <option value="daily" data-i18n="freqDaily">Daily</option>
+  <option value="interval" data-i18n="freqInterval">Custom</option>
+  <option value="weekly" data-i18n="freqWeekly">Weekly</option>
+  <option value="monthly" data-i18n="freqMonthly">Monthly</option>
+</select>
+<div id="interval-options" class="schedule-options" hidden><label for="medicine-interval" data-i18n="fieldEveryDays">Every how many days?</label><input id="medicine-interval" type="number" min="1" max="365" step="1" value="2"></div>
+<fieldset id="weekly-options" class="weekly-options" hidden><legend data-i18n="fieldWeekdays">On these days</legend>
+<label><input type="checkbox" name="weekly-day" value="1"><span data-i18n="weekdaymon">Mon</span></label>
+<label><input type="checkbox" name="weekly-day" value="2"><span data-i18n="weekdaytue">Tue</span></label>
+<label><input type="checkbox" name="weekly-day" value="3"><span data-i18n="weekdaywed">Wed</span></label>
+<label><input type="checkbox" name="weekly-day" value="4"><span data-i18n="weekdaythu">Thu</span></label>
+<label><input type="checkbox" name="weekly-day" value="5"><span data-i18n="weekdayfri">Fri</span></label>
+<label><input type="checkbox" name="weekly-day" value="6"><span data-i18n="weekdaysat">Sat</span></label>
+<label><input type="checkbox" name="weekly-day" value="0"><span data-i18n="weekdaysun">Sun</span></label></fieldset>
+<label for="medicine-start" data-i18n="fieldStart">Schedule starts</label><input id="medicine-start" type="date" required>
+<label for="medicine-end" data-i18n="fieldEnd">Prescription ends (optional)</label><input id="medicine-end" type="date">
+<small data-i18n="fieldScheduleNotice">Use the schedule on the prescription. Changes to existing schedules apply from today; past records are preserved.</small><label for="medicine-instructions" data-i18n="fieldNotes">Notes (optional)</label><textarea id="medicine-instructions" rows="2" maxlength="240" data-i18n-placeholder="notesPlaceholder" placeholder="e.g. Take with food, as prescribed"></textarea><p class="dialog-notice" data-i18n="dialogNotice">Only record instructions from your prescription or pharmacist. This website does not decide your dose.</p><div class="dialog-actions"><button type="button" class="outline-button" id="cancel-dialog" data-i18n="cancel">Cancel</button><button type="submit" class="primary-button" data-i18n="saveMedicine">Save medicine</button></div></form></dialog>
+<dialog id="family-dialog" class="medicine-dialog"><form id="family-form" class="dialog-panel"><div class="dialog-top"><h2 data-i18n="familyNewTitle">Add family member</h2><button type="button" id="family-close" class="close-button" aria-label="Close" data-i18n-aria-label="closeAria">×</button></div><label for="family-name" data-i18n="familyName">Name or nickname</label><input id="family-name" required maxlength="60" autocomplete="off"><p class="dialog-notice" data-i18n="familyPrivacy">Profiles share this browser. There are no passwords or separate accounts.</p><div class="dialog-actions"><button class="primary-button" type="submit" data-i18n="saveFamily">Save member</button></div></form></dialog>
+<dialog id="family-delete-dialog" class="medicine-dialog" aria-labelledby="family-delete-title" aria-describedby="family-delete-impact family-delete-note">
+  <div class="dialog-panel family-delete-panel">
+    <div class="dialog-top"><h2 id="family-delete-title">Remove family member?</h2><button type="button" id="family-delete-close" class="close-button" aria-label="Close" data-i18n-aria-label="closeAria">×</button></div>
+    <p class="family-delete-impact" id="family-delete-impact"></p>
+    <p class="dialog-notice" id="family-delete-note" data-i18n="familyDeletePermanent">This permanently deletes this member's active and archived medicines and dose history. Other family members are not affected.</p>
+    <p class="settings-hint" data-i18n="familyDeleteBackupHint">Download a backup from Settings first if you may need these records again.</p>
+    <div class="dialog-actions"><button type="button" class="outline-button" id="family-delete-cancel" data-i18n="cancel">Cancel</button><button type="button" class="family-delete-danger" id="family-delete-confirm" data-i18n="removeFamily">Remove member</button></div>
+  </div>
+</dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/translations.js" defer></script>
+<script src="/interactions.js" defer></script>
+<script src="/schedule.js" defer></script>
+<script src="/report.js" defer></script>
+<script src="/reminder_ui.js?v=20261101-reminder-fix" defer></script>
+<script src="/app.js?v=20261101-reminder-fix" defer></script>
+</body>
+</html>

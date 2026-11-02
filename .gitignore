@@ -1,0 +1,45 @@
+# Local secrets and patient records
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+reminders.json
+*backup*.json
+*.ics
+*.xlsx
+*.xls
+
+# Only two approved reference databases belong in the repository
+*.sqlite
+*.sqlite3
+*.db
+*.db3
+*.db-wal
+*.db-shm
+/data/*
+!/data/ddinter.sqlite3
+!/data/rxnorm_catalog.sqlite3
+
+# Generated and local files
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+node_modules/
+.DS_Store
+.idea/
+.vscode/
+.pytest_cache/
+*.zip
+*.tar.gz
+*.log
+*.jsonl
+*.bak
+*.orig
+*.patch
+coverage/
+htmlcov/
+Thumbs.db
+desktop.ini
