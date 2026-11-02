@@ -213,7 +213,8 @@ def status():
     elif SYSTEM == 'Windows':
         try:
             checked = subprocess.run(['schtasks.exe', '/Query', '/TN', WINDOWS_TASK],
-                capture_output=True, timeout=4, check=False)
+                capture_output=True, timeout=4, check=False,
+                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000))
             running = checked.returncode == 0
         except (OSError, subprocess.TimeoutExpired):
             pass
