@@ -7,6 +7,11 @@ import sys
 
 from local_reminders import DATA_FILE, STATE_FILE, SUPPORT, read_json, save_json_private, outstanding_events, should_repeat
 
+# The helper runs via pythonw.exe, but a console-subsystem child such as
+# powershell.exe will still flash a window unless its creation flag is set.
+# Numeric fallback also makes this Windows-only flag verifiable on CI hosts.
+CREATE_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
+
 POWERSHELL = r'''
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -36,7 +41,8 @@ def notify_windows(body, title='Medication reminder'):
     env['MEDIMATE_NOTIFICATION_TITLE'] = title
     env['MEDIMATE_NOTIFICATION_MESSAGE'] = body
     subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', POWERSHELL],
-                   env=env, capture_output=True, check=True, timeout=15)
+                   env=env, capture_output=True, check=True, timeout=15,
+                   creationflags=CREATE_NO_WINDOW)
 
 
 def run_once(now=None, notify=None):
