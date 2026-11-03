@@ -216,6 +216,28 @@
     }catch(_){failed=true;}
     finally{macSyncBusy=false;if(!appStopping)updateMacStatus(failed?t('macSyncFailed'):undefined);}
   }
+  async function testDesktopNotifications(){
+    if(appStopping)return;
+    const button=$('test-desktop-notifications');
+    const status=$('desktop-notification-status');
+    button.disabled=true;
+    status.textContent=t('desktopTestRequesting');
+    try{
+      const response=await fetch('/api/reminders/test',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-MediMate-Request':'1'},
+        body:JSON.stringify({confirm:true})
+      });
+      if(!response.ok)throw Error('desktop_test_failed');
+      const result=await response.json();
+      if(result.requested!==true)throw Error('desktop_test_failed');
+      status.textContent=t('desktopTestRequested');
+    }catch(_){
+      status.textContent=t('desktopTestFailed');
+    }finally{
+      button.disabled=false;
+    }
+  }
   async function stopMedimate(){
     if(appStopping||!window.confirm(t('stopAppConfirm')))return;
     const button=$('stop-medimate');
@@ -1357,6 +1379,7 @@
     $('chat-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('chat-form').requestSubmit();}});
     document.querySelectorAll('[data-prompt]').forEach(el=>el.addEventListener('click',()=>{$('chat-input').value=t(el.dataset.prompt);$('chat-input').focus();}));
     $('mac-reminders-toggle').addEventListener('click',toggleMacReminders);
+    $('test-desktop-notifications').addEventListener('click',testDesktopNotifications);
     $('stop-medimate').addEventListener('click',stopMedimate);
     $('test-notifications').addEventListener('click',async()=>{
       unlockSafetyAudio();
