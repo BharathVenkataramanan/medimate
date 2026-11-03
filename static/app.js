@@ -1114,7 +1114,7 @@
     $('notification-status').textContent += ` (${status})`;
   }
   async function checkDue() {
-    if(appStopping)return;
+    if(typeof appStopping!=='undefined'&&appStopping)return;
     const now=new Date(), minutes=now.getHours()*60+now.getMinutes(), today=localDate();
     const doses=todayDoses();
     const overdue=doses.filter(d=>!d.done && minutes>=Number(d.time.slice(0,2))*60+Number(d.time.slice(3,5)));
