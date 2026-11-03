@@ -20,7 +20,8 @@ STATE_FILE = SUPPORT / 'reminder_sent.json'
 PLIST_FILE = Path.home() / 'Library' / 'LaunchAgents' / 'org.medimate.local-reminders.plist'
 WINDOWS_TASK = 'MediMateLocalReminders'
 TIME = re.compile(r'^(?:[01]\d|2[0-3]):[0-5]\d$')
-LOCAL_STAMP = re.compile(r'^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\dr'^\d{4}-\d{2}-\d{2}$')
+LOCAL_STAMP = re.compile(r'^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$')
+ISO = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
 
 def parse_day(s):
