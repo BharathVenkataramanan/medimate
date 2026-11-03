@@ -277,9 +277,9 @@ class Handler(SimpleHTTPRequestHandler):
                     if system == "Windows" and reminder_status()["helper_installed"]:
                         uninstall_windows()
                     elif system == "Darwin":
-                        from local_reminders import PLIST_FILE
-                        if reminder_status()["helper_installed"] or PLIST_FILE.is_file():
-                            uninstall_mac()
+                        # Boot out by service label even if an older installation
+                        # lost its plist file while the LaunchAgent remained loaded.
+                        uninstall_mac()
                     if reminder_status()["helper_installed"]:
                         return self.json_response(503, {"error": "reminder_uninstall_failed"})
                 except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
