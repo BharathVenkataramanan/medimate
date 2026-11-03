@@ -290,29 +290,32 @@ class Handler(SimpleHTTPRequestHandler):
             Thread(target=self.server.shutdown, daemon=True).start()
             return
         if self.path == "/api/reminders/install":
-            # Installing a persistent background process is a separate, explicit
-            # OS change. Require a browser's same-origin Origin header and a
-            # confirmed UI action, never just the custom request header.
-            origin = self.headers.get("Origin", "")
-            expected = f"http://{self.headers.get('Host', '')}"
-            if origin != expected:
-                return self.json_response(403, {"error": "origin_denied"})
-            if body != {"confirm": True}:
-                return self.json_response(400, {"error": "confirmation_required"})
-            if not reminder_status()["supported"]:
-                return self.json_response(409, {"error": "unsupported_platform"})
-            try:
-                from setup_background_reminders import install_mac, install_windows
-                import platform
-                if platform.system() == "Windows":
-                    install_windows()
-                elif platform.system() == "Darwin":
-                    install_mac()
-                else:
+            with REMINDER_STATE_LOCK:
+                if STOP_REQUESTED:
+                    return self.json_response(409, {"error": "app_stopping"})
+                # Installing a persistent background process is a separate, explicit
+                # OS change. Require a browser's same-origin Origin header and a
+                # confirmed UI action, never just the custom request header.
+                origin = self.headers.get("Origin", "")
+                expected = f"http://{self.headers.get('Host', '')}"
+                if origin != expected:
+                    return self.json_response(403, {"error": "origin_denied"})
+                if body != {"confirm": True}:
+                    return self.json_response(400, {"error": "confirmation_required"})
+                if not reminder_status()["supported"]:
                     return self.json_response(409, {"error": "unsupported_platform"})
-            except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-                return self.json_response(503, {"error": "reminder_install_failed"})
-            return self.json_response(200, {"installed": reminder_status()["helper_installed"]})
+                try:
+                    from setup_background_reminders import install_mac, install_windows
+                    import platform
+                    if platform.system() == "Windows":
+                        install_windows()
+                    elif platform.system() == "Darwin":
+                        install_mac()
+                    else:
+                        return self.json_response(409, {"error": "unsupported_platform"})
+                except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                    return self.json_response(503, {"error": "reminder_install_failed"})
+                return self.json_response(200, {"installed": reminder_status()["helper_installed"]})
         if self.path == "/api/reminders/sync":
             with REMINDER_STATE_LOCK:
                 if STOP_REQUESTED:
