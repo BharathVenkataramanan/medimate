@@ -10,14 +10,16 @@ from local_reminders import PLIST_FILE, WINDOWS_TASK, status
 
 ROOT = Path(__file__).resolve().parent
 AGENT_ID = 'org.medimate.local-reminders'
+WINDOWLESS = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
 
 
 def python_interpreter():
     exe = Path(sys.executable)
     if platform.system() == 'Windows':
         pythonw = exe.with_name('pythonw.exe')
-        if pythonw.exists():
-            return pythonw
+        if not pythonw.is_file():
+            raise FileNotFoundError('Silent background reminders require pythonw.exe')
+        return pythonw
     return exe
 
 
@@ -29,11 +31,15 @@ def windows_task_command():
 
 def install_windows():
     subprocess.run(['schtasks.exe', '/Create', '/SC', 'MINUTE', '/MO', '1', '/IT',
-                    '/TN', WINDOWS_TASK, '/TR', windows_task_command(), '/F'], check=True)
+                    '/TN', WINDOWS_TASK, '/TR', windows_task_command(), '/F'],
+                   check=True, creationflags=WINDOWLESS)
 
 
 def uninstall_windows():
-    subprocess.run(['schtasks.exe', '/Delete', '/TN', WINDOWS_TASK, '/F'], check=True)
+    subprocess.run(['schtasks.exe', '/End', '/TN', WINDOWS_TASK],
+                   check=False, capture_output=True, creationflags=WINDOWLESS)
+    subprocess.run(['schtasks.exe', '/Delete', '/TN', WINDOWS_TASK, '/F'],
+                   check=True, creationflags=WINDOWLESS)
 
 
 def install_mac():
@@ -49,8 +55,11 @@ def install_mac():
 
 
 def uninstall_mac():
-    target = f'gui/{__import__("os").getuid()}'
-    subprocess.run(['/bin/launchctl', 'bootout', target, str(PLIST_FILE)], capture_output=True, check=False)
+    target = f'gui/{__import__("os").getuid()}/{AGENT_ID}'
+    subprocess.run(['/bin/launchctl', 'bootout', target], capture_output=True, check=False)
+    checked = subprocess.run(['/bin/launchctl', 'print', target], capture_output=True, check=False)
+    if checked.returncode == 0:
+        raise OSError('macOS reminder LaunchAgent is still running')
     PLIST_FILE.unlink(missing_ok=True)
 
 
