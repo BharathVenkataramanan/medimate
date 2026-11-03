@@ -15,6 +15,7 @@ const source=code.slice(start,end);
     Date:Clock,Notification,window:{Notification},navigator:{},macEnabled:false,macInstalled:false,
     safetyAudioEnabled:true,gentleMedicinePing:()=>{soundCount++;return true;},
     localDate:()=>'2026-10-31',todayDoses:()=>[sample],t:key=>key,
+    reminderDueAfterActivation:()=>true,
     reminderText:med=>med.name,toggleDose:async()=>{},toast:()=>{},
     $:id=>elements.get(id),localStorage:{
       getItem:key=>store.get(key)||null,setItem:(key,value)=>store.set(key,value),
