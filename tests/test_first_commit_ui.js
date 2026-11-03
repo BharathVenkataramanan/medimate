@@ -36,7 +36,7 @@ vm.createContext(home);
 vm.runInContext(app.slice(hStart,hEnd)+'\nthis.renderToday=renderToday;',home);
 home.renderToday();
 assert.equal(nodes.get('today-list').children.length,1,'untimed medicine appears on home');
-assert.equal(nodes.get('today-list').children[0].children[2].text,'noReminderScheduled');
+assert.equal(nodes.get('today-list').children[0].children[3].text,'noReminderScheduled');
 assert.equal(nodes.get('stat-today').textContent,'0/0','untimed medicine is not a dose');
 
 assert.ok(app.includes("calendarEntries.push({medId:med.id,name:med.name,date,time:'',status:'Unscheduled'})"),
