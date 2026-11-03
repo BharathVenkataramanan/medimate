@@ -254,6 +254,7 @@ async function exercise({hidden, enabled = false, permission = 'granted'}) {
     })}},
     $: () => null,
     localDate: () => '2026-10-18',
+    reminderReady: () => true,
     todayDoses: () => [{id: 'med1|2026-10-18|10:25', time: '10:25',
                         med: {name: 'Example medicine'}, done: false}],
     reminderText: med => `Reminder for ${med.name}`,
