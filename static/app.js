@@ -359,7 +359,8 @@
     $('stat-today').textContent=`${doses.filter(d=>d.done).length}/${doses.length}`;
     $('stat-flags').textContent=interactionCountText(interactionReport);
     const list=$('today-list');list.replaceChildren();
-    if(!doses.length){list.append(emptyState('emptyTodayTitle','emptyTodayText'));return;}
+    const unscheduled=medicines.filter(m=>schedule.isScheduled(m,localDate())&&schedule.timesOn(m,localDate()).length===0);
+    if(!doses.length&&!unscheduled.length){list.append(emptyState('emptyTodayTitle','emptyTodayText'));return;}
     doses.forEach(d=>{
       const row=elt('div','dose-row');
       row.append(elt('span','dose-time',d.time),elt('span','dose-pill','✿'));
@@ -367,6 +368,16 @@
       const btn=elt('button','tiny-button'+(d.done?' taken':''),t(d.done?'taken':'markTaken'));
       btn.type='button';btn.addEventListener('click',()=>toggleDose(d));row.append(btn);list.append(row);
     });
+    // An untimed medicine still belongs on the home schedule. Never invent a
+    // dose time, mark it missed, or create a reminder for an unset time.
+    for(const med of unscheduled){
+      const row=elt('div','dose-row dose-row-unscheduled');
+      row.append(elt('span','dose-time','—'),elt('span','dose-pill','✿'));
+      const info=elt('div','dose-info');
+      info.append(elt('strong','',med.name),elt('small','',[doseDescription(med),med.strength].filter(Boolean).join(' · ')||' '));
+      row.append(info,elt('small','reminder-unscheduled',t('noReminderScheduled')));
+      list.append(row);
+    }
   }
   function scheduleDescription(med) {
     const s=schedule.normalize(med.schedule);
@@ -973,6 +984,17 @@
     if(!year||month<1||month>12)return;
     const member=people.find(p=>p.id===currentProfile)||{id:'self',name:t('meLabel')};
     const data=window.MedimateReport.records(member,allMedicines,allDoses,year,month);
+    // Display medicines without a selected reminder time on the calendar,
+    // but do not turn these into adherence doses or missed-dose records.
+    const calendarEntries=[...data.entries];
+    for(const med of allMedicines.filter(m=>(m.profileId||'self')===currentProfile)){
+      for(let day=1;day<=new Date(year,month,0).getDate();day++){
+        const date=`${chosenMonth}-${String(day).padStart(2,'0')}`;
+        if(schedule.isScheduled(med,date)&&schedule.timesOn(med,date).length===0)
+          calendarEntries.push({medId:med.id,name:med.name,date,time:'',status:'Unscheduled'});
+      }
+    }
+    const calendarStatus=x=>x.status==='Unscheduled'?t('noReminderScheduled'):t('status'+(x.status==='Not logged'?'NotLogged':x.status));
     const headers=$('calendar-week-head');headers.replaceChildren();
     for(const key of ['mon','tue','wed','thu','fri','sat','sun'])headers.append(elt('span','',t('weekday'+key)));
     const calendarPage=$('page-adherence');
@@ -990,14 +1012,14 @@
       cell.id='calendar-day-'+day;
       const dayButton=elt('button','calendar-day-button',String(n));dayButton.type='button';
       cell.append(dayButton);
-      const daily=data.entries.filter(x=>x.date===day).sort((a,b)=>{
+      const daily=calendarEntries.filter(x=>x.date===day).sort((a,b)=>{
         const rank={'Missed':0,'Taken':1,'Not logged':2,'Upcoming':3};
         return (rank[a.status]??4)-(rank[b.status]??4)||a.time.localeCompare(b.time);
       });
       for(const x of (expandedDay?daily:daily.slice(0,5))){
         const status=x.status==='Missed'?'pill-missed':x.status==='Taken'?'pill-taken':'pill-unconfirmed';
-        const pill=elt('span','calendar-med-name '+status,`${x.name} · ${t('status'+(x.status==='Not logged'?'NotLogged':x.status))}`);
-        pill.title=`${x.name} · ${x.time} · ${t('status'+(x.status==='Not logged'?'NotLogged':x.status))}`;
+        const pill=elt('span','calendar-med-name '+status,`${x.name} · ${calendarStatus(x)}`);
+        pill.title=`${x.name}${x.time?' · '+x.time:''} · ${calendarStatus(x)}`;
         cell.append(pill);
       }
       if(!calendarExpanded && daily.length>5){
@@ -1021,19 +1043,19 @@
         });
         cell.append(more);
       }
-      dayButton.setAttribute('aria-label',[day,...daily.map(x=>`${x.name}, ${x.time}, ${t('status'+(x.status==='Not logged'?'NotLogged':x.status))}`)].join('; ').slice(0,700));
+      dayButton.setAttribute('aria-label',[day,...daily.map(x=>`${x.name}, ${x.time||t('noReminderScheduled')}, ${calendarStatus(x)}`)].join('; ').slice(0,700));
       cell.addEventListener('click',()=>{chosenDay=day;renderAdherence();});
       root.append(cell);
     }
     $('day-log-title').textContent=`${t('dayTitle')} · ${chosenDay}`;
     const list=$('day-log-list');list.replaceChildren();
-    const selected=data.entries.filter(x=>x.date===chosenDay);
+    const selected=calendarEntries.filter(x=>x.date===chosenDay);
     if(!selected.length){list.append(elt('p','med-notes',t('noScheduledDoses')));return;}
     for(const x of selected){
       const row=elt('div','day-dose-row');const copy=elt('div');
-      copy.append(elt('strong','',x.name+' · '+x.time),elt('small','dose-state '+(x.status==='Missed'?'state-missed':x.status==='Taken'?'state-taken':'state-neutral'),t('status'+(x.status==='Not logged'?'NotLogged':x.status))));row.append(copy);
+      copy.append(elt('strong','',x.name+(x.time?' · '+x.time:'')),elt('small','dose-state '+(x.status==='Missed'?'state-missed':x.status==='Taken'?'state-taken':'state-neutral'),calendarStatus(x)));row.append(copy);
       const actions=elt('div','day-actions');const med=allMedicines.find(m=>(m.profileId||'self')===currentProfile&&m.id===x.medId);
-      if(med){
+      if(med&&x.time){
         for(const [status,key] of [['taken','statusTaken'],['missed','statusMissed']]){
           const btn=elt('button','tiny-button',t(key));btn.disabled=x.status.toLowerCase()===status;
           btn.addEventListener('click',()=>markCalendarDose(med,chosenDay,x.time,status));actions.append(btn);
