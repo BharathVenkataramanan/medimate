@@ -171,9 +171,9 @@
     if(!macEnabled||appStopping)return;
     clearTimeout(macSyncTimer);
     macSyncTimer=setTimeout(async()=>{
-      if(!macEnabled)return;
-      try {await postMacPayload(true);updateMacStatus();}
-      catch(_){updateMacStatus(t('macSyncFailed'));}
+      if(!macEnabled||appStopping)return;
+      try {await postMacPayload(true);if(!appStopping)updateMacStatus();}
+      catch(_){if(!appStopping)updateMacStatus(t('macSyncFailed'));}
     },650);
   }
   async function toggleMacReminders(){
@@ -199,7 +199,7 @@
       await postMacPayload(newValue);
       macEnabled=newValue;
     }catch(_){failed=true;}
-    finally{macSyncBusy=false;updateMacStatus(failed?t('macSyncFailed'):undefined);}
+    finally{macSyncBusy=false;if(!appStopping)updateMacStatus(failed?t('macSyncFailed'):undefined);}
   }
   async function stopMedimate(){
     if(appStopping||!window.confirm(t('stopAppConfirm')))return;
