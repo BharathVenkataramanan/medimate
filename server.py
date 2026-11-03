@@ -238,7 +238,7 @@ class Handler(SimpleHTTPRequestHandler):
         global STOP_REQUESTED
         if not trusted_request(self.headers, state_change=True):
             return self.json_response(403, {"error": "origin_denied"})
-        if self.path not in ("/api/chat", "/api/interactions", "/api/medicines/rxnorm", "/api/interactions/fda", "/api/reminders/sync", "/api/reminders/install", "/api/app/stop"):
+        if self.path not in ("/api/chat", "/api/interactions", "/api/medicines/rxnorm", "/api/interactions/fda", "/api/reminders/sync", "/api/reminders/install", "/api/reminders/test", "/api/app/stop"):
             return self.json_response(404, {"error": "not_found"})
         if "application/json" not in self.headers.get("Content-Type", ""):
             return self.json_response(415, {"error": "content_type"})
@@ -256,6 +256,28 @@ class Handler(SimpleHTTPRequestHandler):
             return self.json_response(400, {"error": "invalid_input"})
         if STOP_REQUESTED:
             return self.json_response(409, {"error": "app_stopping"})
+        if self.path == "/api/reminders/test":
+            # Distinct from the browser Notification API test. Exercise the
+            # actual operating-system notification sender on user request.
+            expected = f"http://{self.headers.get('Host', '')}"
+            if self.headers.get("Origin", "") != expected:
+                return self.json_response(403, {"error": "origin_denied"})
+            if body != {"confirm": True}:
+                return self.json_response(400, {"error": "confirmation_required"})
+            try:
+                import platform
+                if platform.system() == "Windows":
+                    from windows_reminder_agent import notify_windows
+                    notify_windows("Test reminder from MediMate", "MediMate test")
+                elif platform.system() == "Darwin":
+                    from mac_reminder_agent import test_notification
+                    if test_notification() != 0:
+                        return self.json_response(503, {"error": "desktop_notification_failed"})
+                else:
+                    return self.json_response(409, {"error": "unsupported_platform"})
+            except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                return self.json_response(503, {"error": "desktop_notification_failed"})
+            return self.json_response(200, {"requested": True})
         if self.path == "/api/app/stop":
             # Do not accept cross-origin requests or custom-header-only requests
             # for an action that stops the server and OS reminder helper.

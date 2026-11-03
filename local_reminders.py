@@ -20,6 +20,7 @@ STATE_FILE = SUPPORT / 'reminder_sent.json'
 PLIST_FILE = Path.home() / 'Library' / 'LaunchAgents' / 'org.medimate.local-reminders.plist'
 WINDOWS_TASK = 'MediMateLocalReminders'
 TIME = re.compile(r'^(?:[01]\d|2[0-3]):[0-5]\d$')
+LOCAL_STAMP = re.compile(r'^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$')
 ISO = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
 
@@ -85,6 +86,30 @@ def clean_version(v):
     }
 
 
+def clean_reminder_activation(value, times):
+    """Local activation timestamp for each selected reminder time.
+
+    A dose that was already in the past when the reminder was added must
+    never produce an immediate overdue alert. Legacy snapshots can omit it.
+    """
+    if value is None:
+        return {}
+    if not isinstance(value, dict) or len(value) > 12:
+        raise ValueError('invalid reminder activation')
+    clean = {}
+    for time, stamp in value.items():
+        if time not in times or not isinstance(stamp, str) or not LOCAL_STAMP.fullmatch(stamp):
+            raise ValueError('invalid reminder activation')
+        parse_day(stamp[:10])
+        clean[time] = stamp
+    return clean
+
+
+def reminder_activated(medicine, day, time):
+    stamp = medicine.get('reminderActivatedAt', {}).get(time)
+    return not stamp or f'{day.isoformat()}T{time}:00' >= stamp
+
+
 def clean_med(m):
     if not isinstance(m, dict):
         raise ValueError('invalid medicine')
@@ -107,12 +132,14 @@ def clean_med(m):
     versions = m.get('scheduleVersions', [])
     if not isinstance(versions, list) or len(versions) > 100:
         raise ValueError('invalid versions')
+    times = times_list(m.get('times'))
     return {
         'id': med_id,
         'name': safe_text(m.get('name'), 90),
         'startDate': start,
         'courseEndDate': end,
-        'times': times_list(m.get('times')),
+        'times': times,
+        'reminderActivatedAt': clean_reminder_activation(m.get('reminderActivatedAt'), times),
         'schedule': schedule_config(m.get('schedule')),
         'periods': clean_periods,
         'scheduleVersions': [clean_version(v) for v in versions],
@@ -282,7 +309,7 @@ def due_events(snapshot, now, max_lag=10):
                 lag = minute - (hour * 60 + mm)
                 event_id = f"{p['id']}|{m['id']}|{day.isoformat()}|{time}"
                 dose_id = f"{m['id']}|{day.isoformat()}|{time}"
-                if 0 <= lag <= max_lag and dose_id not in taken:
+                if 0 <= lag <= max_lag and dose_id not in taken and reminder_activated(m, day, time):
                     result.append((event_id, p['name'], m['name'], time))
     return result
 
@@ -312,7 +339,7 @@ def outstanding_events(snapshot, now, pending=()):
                 if prefix != f"{profile['id']}|{med['id']}":
                     continue
                 dose_id = f"{med['id']}|{iso}|{when}"
-                if dose_id not in taken and when in times_on(med, day):
+                if dose_id not in taken and when in times_on(med, day) and reminder_activated(med, day, when):
                     events[event_id] = (event_id, profile['name'], med['name'], when)
                 break
     return list(events.values())

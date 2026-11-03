@@ -22,9 +22,13 @@ try {
   $notify.BalloonTipTitle = $env:MEDIMATE_NOTIFICATION_TITLE
   $notify.BalloonTipText = $env:MEDIMATE_NOTIFICATION_MESSAGE
   $notify.BalloonTipIcon = [System.Windows.Forms.ToolTipIcon]::Info
+  # Allow Windows Explorer to register the tray icon before requesting
+  # the balloon. A hidden console does not mean a hidden notification.
+  [System.Windows.Forms.Application]::DoEvents()
+  Start-Sleep -Milliseconds 400
   [System.Media.SystemSounds]::Asterisk.Play()
-  $notify.ShowBalloonTip(8000)
-  $until = (Get-Date).AddSeconds(9)
+  $notify.ShowBalloonTip(10000)
+  $until = (Get-Date).AddSeconds(11)
   while ((Get-Date) -lt $until) {
     [System.Windows.Forms.Application]::DoEvents()
     Start-Sleep -Milliseconds 100
@@ -40,8 +44,8 @@ def notify_windows(body, title='Medication reminder'):
     env = os.environ.copy()
     env['MEDIMATE_NOTIFICATION_TITLE'] = title
     env['MEDIMATE_NOTIFICATION_MESSAGE'] = body
-    subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', POWERSHELL],
-                   env=env, capture_output=True, check=True, timeout=15,
+    subprocess.run(['powershell.exe', '-NoLogo', '-NoProfile', '-NonInteractive', '-Sta', '-Command', POWERSHELL],
+                   env=env, capture_output=True, check=True, timeout=30,
                    creationflags=CREATE_NO_WINDOW)
 
 

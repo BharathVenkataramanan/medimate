@@ -57,7 +57,7 @@ class CrossPlatformTests(TestCase):
         command = process.call_args.args[0]
         self.assertNotIn('fictional-pill', ' '.join(command))
         self.assertEqual(process.call_args.kwargs['env']['MEDIMATE_NOTIFICATION_MESSAGE'], 'Family: fictional-pill · 08:00')
-        self.assertEqual(process.call_args.kwargs['timeout'], 15)
+        self.assertEqual(process.call_args.kwargs['timeout'], 30)
 
     def test_windows_duplicate_suppression_and_private_snapshot(self):
         with TemporaryDirectory() as directory:
