@@ -61,7 +61,7 @@ class ReminderActivationTests(TestCase):
             (root/'snapshot.json').write_text(json.dumps(sample({'08:00':'2026-10-27T20:00:00',
                 '21:00':'2026-10-27T20:00:00'})))
             messages=[]
-            with patch.object(win,'SUPPORT',root), patch.object(win,'DATA_FILE',root/'snapshot.json'), \\
+            with patch.object(win,'SUPPORT',root), patch.object(win,'DATA_FILE',root/'snapshot.json'), \
                  patch.object(win,'STATE_FILE',root/'state.json'), patch.object(win.sys,'platform','linux'):
                 send=lambda body, title: messages.append(body)
                 for dt in [datetime(2026,10,27,20,15),datetime(2026,10,28,8,0),
