@@ -46,15 +46,15 @@
     if(!safetyAudioEnabled||!safetyAudioContext||safetyAudioContext.state!=='running')return false;
     try{
       const now=safetyAudioContext.currentTime;
-      for(const [i,freq] of [740,988].entries()){
+      for(const [i,freq] of [740,988,880].entries()){
         const tone=safetyAudioContext.createOscillator(), gain=safetyAudioContext.createGain();
         tone.type='sine';tone.frequency.value=freq;
-        const start=now+i*.16;
+        const start=now+i*.22;
         gain.gain.setValueAtTime(.0001,start);
-        gain.gain.exponentialRampToValueAtTime(.033,start+.025);
-        gain.gain.exponentialRampToValueAtTime(.0001,start+.20);
+        gain.gain.exponentialRampToValueAtTime(.14,start+.035);
+        gain.gain.exponentialRampToValueAtTime(.0001,start+.32);
         tone.connect(gain);gain.connect(safetyAudioContext.destination);
-        tone.start(start);tone.stop(start+.22);
+        tone.start(start);tone.stop(start+.33);
       }
       return true;
     }catch(_){return false;}
@@ -66,6 +66,13 @@
   const t = key => (window.I18N[lang] && window.I18N[lang][key]) || window.I18N.en[key] || key;
   const elt = (tag, cls, text) => { const node=document.createElement(tag); if(cls) node.className=cls; if(text!==undefined) node.textContent=text; return node; };
   const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const localStamp = (d = new Date()) => `${localDate(d)}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+  const activationFor = (med,time) => {
+    if(typeof med.reminderActivatedAt?.[time]==='string')return med.reminderActivatedAt[time];
+    const edited=med.updatedAt?new Date(med.updatedAt):null;
+    return edited&&Number.isFinite(edited.getTime())?localStamp(edited):localStamp();
+  };
+  const reminderReady = (med,day,time) => `${day}T${time}:00`>=activationFor(med,time);
   const notifyKey = (mId,day,time) => `${mId}|${day}|${time}`;
   const schedule = window.MedimateSchedule;
   const sortTimes = times => [...new Set(times)].sort((a,b)=>a.localeCompare(b));
@@ -140,7 +147,8 @@
     return {enabled,profiles:people.map(p=>({id:p.id,name:p.id==='self'?t('meLabel'):p.name,language:lang,
       medicines:allMedicines.filter(m=>(m.profileId||'self')===p.id && m.active!==false).map(m=>({
         id:m.id,name:m.name,quantity:m.quantity??null,doseUnit:m.doseUnit||'',notes:m.notes||'',startDate:m.startDate||m.updatedAt?.slice(0,10)||localDate(),
-        courseEndDate:m.courseEndDate||'',times:m.times,schedule:m.schedule||{frequency:'daily'},
+        courseEndDate:m.courseEndDate||'',times:m.times,
+        reminderActivatedAt:Object.fromEntries((m.times||[]).map(time=>[time,activationFor(m,time)])),schedule:m.schedule||{frequency:'daily'},
         scheduleVersions:m.scheduleVersions||[],periods:m.periods||[]
       }))
     })),taken:allDoses.filter(d=>(d.status==='taken'||!d.status)).slice(-800).map(d=>d.id)};
@@ -161,7 +169,7 @@
       const response=await fetch('/api/reminders/status');
       if(!response.ok)throw new Error('status');
       const status=await response.json();
-      macSupported=Boolean(status.supported);macInstalled=Boolean(status.helper_installed);macEnabled=Boolean(status.enabled);
+      macSupported=Boolean(status.supported);macInstalled=Boolean(status.helper_installed);macEnabled=Boolean(status.enabled&&status.helper_installed);
       updateMacStatus();
       if(macEnabled) scheduleMacSync();
     }catch(_){macSupported=false;updateMacStatus(t('macSyncFailed'));}
@@ -926,7 +934,11 @@
     }
     const periods=existing?.periods?.length?existing.periods:[{start:existing?.startDate||start,end:null}];
     const rxnormId=selectedRxNorm?.name===name?selectedRxNorm.rxcui:null;
-    const med={id,profileId:currentProfile,name,rxnormId,strength:$('medicine-strength').value.trim(),quantity,doseUnit,times,notes:$('medicine-instructions').value.trim(),startDate:start,courseEndDate:end,schedule:recurrence,scheduleVersions,periods,active:true,updatedAt:new Date().toISOString()};
+    const createdAt=localStamp();
+    const scheduleChanged=existing && (JSON.stringify(schedule.normalize(existing.schedule))!==JSON.stringify(recurrence) || existing.startDate!==start || existing.courseEndDate!==end);
+    const reminderActivatedAt=Object.fromEntries(times.map(time=>[time,
+      existing && !scheduleChanged && (existing.times||[]).includes(time)?activationFor(existing,time):createdAt]));
+    const med={id,profileId:currentProfile,name,rxnormId,reminderActivatedAt,strength:$('medicine-strength').value.trim(),quantity,doseUnit,times,notes:$('medicine-instructions').value.trim(),startDate:start,courseEndDate:end,schedule:recurrence,scheduleVersions,periods,active:true,updatedAt:new Date().toISOString()};
     await tx('medicines','readwrite',st=>st.put(med));closeMedicineSuggestions();$('medicine-dialog').close();toast(t('saved'));await refresh();
   }
   async function removeMedicine(med){
@@ -1083,7 +1095,7 @@
   async function checkDue() {
     const now=new Date(), minutes=now.getHours()*60+now.getMinutes(), today=localDate();
     const doses=todayDoses();
-    const overdue=doses.filter(d=>!d.done && minutes>=Number(d.time.slice(0,2))*60+Number(d.time.slice(3,5)));
+    const overdue=doses.filter(d=>!d.done && reminderReady(d.med,today,d.time) && minutes>=Number(d.time.slice(0,2))*60+Number(d.time.slice(3,5)));
     const banner=$('due-reminder-banner');
     if(banner){
       const item=overdue[0];
