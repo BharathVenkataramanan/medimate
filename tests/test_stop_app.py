@@ -136,6 +136,7 @@ class HelperShutdownTests(unittest.TestCase):
             plist = Path(directory) / 'org.medimate.local-reminders.plist'
             plist.write_text('fixture')
             with patch.object(setup, 'PLIST_FILE', plist), \
+                 patch('os.getuid', return_value=501, create=True), \
                  patch.object(setup.subprocess, 'run', side_effect=[
                      MagicMock(returncode=0), MagicMock(returncode=113)]) as runner:
                 setup.uninstall_mac()
@@ -147,6 +148,7 @@ class HelperShutdownTests(unittest.TestCase):
             plist = Path(directory) / 'org.medimate.local-reminders.plist'
             plist.write_text('fixture')
             with patch.object(setup, 'PLIST_FILE', plist), \
+                 patch('os.getuid', return_value=501, create=True), \
                  patch.object(setup.subprocess, 'run', side_effect=[
                      MagicMock(returncode=1), MagicMock(returncode=0)]):
                 with self.assertRaises(subprocess.CalledProcessError):
