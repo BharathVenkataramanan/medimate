@@ -66,6 +66,18 @@
   const t = key => (window.I18N[lang] && window.I18N[lang][key]) || window.I18N.en[key] || key;
   const elt = (tag, cls, text) => { const node=document.createElement(tag); if(cls) node.className=cls; if(text!==undefined) node.textContent=text; return node; };
   const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const localStamp = (d = new Date()) => `${localDate(d)}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+  const activationTimes = med => {
+    // Existing pre-patch medicine records use their last edit time as a
+    // conservative fallback. No past-time reminder is fired immediately.
+    const changed = med.updatedAt ? new Date(med.updatedAt) : null;
+    const fallback = changed && Number.isFinite(changed.getTime()) ? localStamp(changed) : localStamp();
+    return Object.fromEntries((med.times||[]).map(time=>[time,med.reminderActivatedAt?.[time]||fallback]));
+  };
+  const reminderDueAfterActivation = (med,day,time) => {
+    const since=activationTimes(med)[time];
+    return !since || `${day}T${time}:00`>=since;
+  };
   const notifyKey = (mId,day,time) => `${mId}|${day}|${time}`;
   const schedule = window.MedimateSchedule;
   const sortTimes = times => [...new Set(times)].sort((a,b)=>a.localeCompare(b));
@@ -141,7 +153,7 @@
     return {enabled,profiles:people.map(p=>({id:p.id,name:p.id==='self'?t('meLabel'):p.name,language:lang,
       medicines:allMedicines.filter(m=>(m.profileId||'self')===p.id && m.active!==false).map(m=>({
         id:m.id,name:m.name,quantity:m.quantity??null,doseUnit:m.doseUnit||'',notes:m.notes||'',startDate:m.startDate||m.updatedAt?.slice(0,10)||localDate(),
-        courseEndDate:m.courseEndDate||'',times:m.times,schedule:m.schedule||{frequency:'daily'},
+        courseEndDate:m.courseEndDate||'',times:m.times,reminderActivatedAt:activationTimes(m),schedule:m.schedule||{frequency:'daily'},
         scheduleVersions:m.scheduleVersions||[],periods:m.periods||[]
       }))
     })),taken:allDoses.filter(d=>(d.status==='taken'||!d.status)).slice(-800).map(d=>d.id)};
@@ -162,7 +174,10 @@
       const response=await fetch('/api/reminders/status');
       if(!response.ok)throw new Error('status');
       const status=await response.json();
-      macSupported=Boolean(status.supported);macInstalled=Boolean(status.helper_installed);macEnabled=Boolean(status.enabled);
+      macSupported=Boolean(status.supported);macInstalled=Boolean(status.helper_installed);
+      // An old service may have been removed by Stop or manually, while its
+      // snapshot is still enabled. Always offer setup instead of a dead toggle.
+      macEnabled=Boolean(status.enabled&&status.helper_installed);
       updateMacStatus();
       if(macEnabled) scheduleMacSync();
     }catch(_){macSupported=false;updateMacStatus(t('macSyncFailed'));}
@@ -959,7 +974,13 @@
     }
     const periods=existing?.periods?.length?existing.periods:[{start:existing?.startDate||start,end:null}];
     const rxnormId=selectedRxNorm?.name===name?selectedRxNorm.rxcui:null;
-    const med={id,profileId:currentProfile,name,rxnormId,strength:$('medicine-strength').value.trim(),quantity,doseUnit,times,notes:$('medicine-instructions').value.trim(),startDate:start,courseEndDate:end,schedule:recurrence,scheduleVersions,periods,active:true,updatedAt:new Date().toISOString()};
+    const clock=localStamp();
+    const oldActivations=existing?activationTimes(existing):{};
+    const rescheduled=existing && (JSON.stringify(schedule.normalize(existing.schedule))!==JSON.stringify(recurrence) || existing.startDate!==start || existing.courseEndDate!==end);
+    const reminderActivatedAt=Object.fromEntries(times.map(time=>[
+      time,existing && !rescheduled && (existing.times||[]).includes(time) ? (oldActivations[time]||clock) : clock
+    ]));
+    const med={id,profileId:currentProfile,name,rxnormId,reminderActivatedAt,strength:$('medicine-strength').value.trim(),quantity,doseUnit,times,notes:$('medicine-instructions').value.trim(),startDate:start,courseEndDate:end,schedule:recurrence,scheduleVersions,periods,active:true,updatedAt:new Date().toISOString()};
     await tx('medicines','readwrite',st=>st.put(med));closeMedicineSuggestions();$('medicine-dialog').close();toast(t('saved'));await refresh();
   }
   async function removeMedicine(med){
@@ -1117,7 +1138,7 @@
     if(typeof appStopping!=='undefined'&&appStopping)return;
     const now=new Date(), minutes=now.getHours()*60+now.getMinutes(), today=localDate();
     const doses=todayDoses();
-    const overdue=doses.filter(d=>!d.done && minutes>=Number(d.time.slice(0,2))*60+Number(d.time.slice(3,5)));
+    const overdue=doses.filter(d=>!d.done && reminderDueAfterActivation(d.med,today,d.time) && minutes>=Number(d.time.slice(0,2))*60+Number(d.time.slice(3,5)));
     const banner=$('due-reminder-banner');
     if(banner){
       const item=overdue[0];
