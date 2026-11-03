@@ -91,6 +91,7 @@
   };
   let toastTimer;
   let macEnabled=false, macInstalled=false, macSupported=false, macSyncTimer=null, macSyncBusy=false;
+  let appStopping=false, dueInterval=null;
 
 
   function toast(message) {
@@ -167,16 +168,16 @@
     }catch(_){macSupported=false;updateMacStatus(t('macSyncFailed'));}
   }
   function scheduleMacSync(){
-    if(!macEnabled)return;
+    if(!macEnabled||appStopping)return;
     clearTimeout(macSyncTimer);
     macSyncTimer=setTimeout(async()=>{
-      if(!macEnabled)return;
-      try {await postMacPayload(true);updateMacStatus();}
-      catch(_){updateMacStatus(t('macSyncFailed'));}
+      if(!macEnabled||appStopping)return;
+      try {await postMacPayload(true);if(!appStopping)updateMacStatus();}
+      catch(_){if(!appStopping)updateMacStatus(t('macSyncFailed'));}
     },650);
   }
   async function toggleMacReminders(){
-    if(!macSupported||macSyncBusy)return;
+    if(!macSupported||macSyncBusy||appStopping)return;
     const newValue=!macEnabled;
     // Background helpers are included in the one-download repository.
     // Explicit consent is required before registering an OS background task.
@@ -198,7 +199,39 @@
       await postMacPayload(newValue);
       macEnabled=newValue;
     }catch(_){failed=true;}
-    finally{macSyncBusy=false;updateMacStatus(failed?t('macSyncFailed'):undefined);}
+    finally{macSyncBusy=false;if(!appStopping)updateMacStatus(failed?t('macSyncFailed'):undefined);}
+  }
+  async function stopMedimate(){
+    if(appStopping||!window.confirm(t('stopAppConfirm')))return;
+    const button=$('stop-medimate');
+    button.disabled=true;
+    $('stop-medimate-status').textContent=t('stopAppStopping');
+    appStopping=true;
+    clearTimeout(macSyncTimer);
+    try{
+      const response=await fetch('/api/app/stop',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-MediMate-Request':'1'},
+        body:JSON.stringify({confirm:true})
+      });
+      if(!response.ok)throw Error('stop_failed');
+      const result=await response.json();
+      if(result.stopped!==true||result.reminders_disabled!==true)throw Error('stop_incomplete');
+      macEnabled=false;macInstalled=false;
+      if(dueInterval)clearInterval(dueInterval);
+      // Replace the interactive app with a clear stopped state. IndexedDB is
+      // intentionally retained; no medicines or dose confirmations are deleted.
+      const screen=elt('main','stopped-app-screen');
+      const card=elt('section','paper-card stopped-app-card');
+      card.append(elt('h1','',t('stopAppDoneTitle')),
+                  elt('p','',t('stopAppDoneDesc')));
+      screen.append(card);
+      document.body.replaceChildren(screen);
+    }catch(_){
+      appStopping=false;
+      button.disabled=false;
+      $('stop-medimate-status').textContent=t('stopAppFailed');
+    }
   }
   function profileName(){return people.find(p=>p.id===currentProfile)?.name||t('meLabel');}
   function renderProfiles(){
@@ -1081,6 +1114,7 @@
     $('notification-status').textContent += ` (${status})`;
   }
   async function checkDue() {
+    if(typeof appStopping!=='undefined'&&appStopping)return;
     const now=new Date(), minutes=now.getHours()*60+now.getMinutes(), today=localDate();
     const doses=todayDoses();
     const overdue=doses.filter(d=>!d.done && minutes>=Number(d.time.slice(0,2))*60+Number(d.time.slice(3,5)));
@@ -1302,6 +1336,7 @@
     $('chat-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('chat-form').requestSubmit();}});
     document.querySelectorAll('[data-prompt]').forEach(el=>el.addEventListener('click',()=>{$('chat-input').value=t(el.dataset.prompt);$('chat-input').focus();}));
     $('mac-reminders-toggle').addEventListener('click',toggleMacReminders);
+    $('stop-medimate').addEventListener('click',stopMedimate);
     $('test-notifications').addEventListener('click',async()=>{
       unlockSafetyAudio();
       const sample=t('notificationTestMessage');
@@ -1317,8 +1352,8 @@
     $('export-calendar').addEventListener('click',calendarExport);$('export-data').addEventListener('click',exportData);
     $('import-data').addEventListener('click',()=>$('import-file').click());$('import-file').addEventListener('change',async e=>{await importData(e.target.files?.[0]);e.target.value='';});
     $('clear-data').addEventListener('click',clearData);
-    window.addEventListener('focus',()=>{checkDue();refresh().catch(()=>{});});
-    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkDue();});
+    window.addEventListener('focus',()=>{if(appStopping)return;checkDue();refresh().catch(()=>{});});
+    document.addEventListener('visibilitychange',()=>{if(!appStopping&&document.visibilityState==='visible')checkDue();});
   }
   async function init(){
     chosenDay=localDate();chosenMonth=chosenDay.slice(0,7);translate();bindEvents();try{db=await database();await refresh();}catch(e){toast('Local browser storage could not be opened. Check private browsing settings.');console.error('IndexedDB could not be opened');}
@@ -1327,7 +1362,7 @@
       // A previous version cached the application shell and could show an old UI.
       navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{});
     }
-    setInterval(checkDue,20000);setTimeout(checkDue,1200);
+    dueInterval=setInterval(checkDue,20000);setTimeout(checkDue,1200);
   }
   document.addEventListener('DOMContentLoaded',init);
 })();

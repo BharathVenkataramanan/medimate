@@ -12,7 +12,7 @@ import time
 from collections import defaultdict, deque
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from threading import Lock
+from threading import Lock, Thread
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from urllib.parse import urlparse, parse_qs
@@ -20,6 +20,11 @@ from medication_sources import suggestions_local, suggestions_rxnorm, crosscheck
 from ddinter_lookup import check_pairs, DB_PATH
 from rxnorm_catalog import ready as rxnorm_catalog_ready
 from local_reminders import write_snapshot, status as reminder_status
+
+# Serialise reminder sync against an explicit shutdown. Closing the browser or
+# rebooting does not set this flag; only the confirmed Stop action does.
+REMINDER_STATE_LOCK = Lock()
+STOP_REQUESTED = False
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
@@ -230,9 +235,10 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_HEAD()
 
     def do_POST(self) -> None:
+        global STOP_REQUESTED
         if not trusted_request(self.headers, state_change=True):
             return self.json_response(403, {"error": "origin_denied"})
-        if self.path not in ("/api/chat", "/api/interactions", "/api/medicines/rxnorm", "/api/interactions/fda", "/api/reminders/sync", "/api/reminders/install"):
+        if self.path not in ("/api/chat", "/api/interactions", "/api/medicines/rxnorm", "/api/interactions/fda", "/api/reminders/sync", "/api/reminders/install", "/api/app/stop"):
             return self.json_response(404, {"error": "not_found"})
         if "application/json" not in self.headers.get("Content-Type", ""):
             return self.json_response(415, {"error": "content_type"})
@@ -248,39 +254,78 @@ class Handler(SimpleHTTPRequestHandler):
             return self.json_response(400, {"error": "invalid_input"})
         if not isinstance(body, dict):
             return self.json_response(400, {"error": "invalid_input"})
-        if self.path == "/api/reminders/install":
-            # Installing a persistent background process is a separate, explicit
-            # OS change. Require a browser's same-origin Origin header and a
-            # confirmed UI action, never just the custom request header.
-            origin = self.headers.get("Origin", "")
+        if STOP_REQUESTED:
+            return self.json_response(409, {"error": "app_stopping"})
+        if self.path == "/api/app/stop":
+            # Do not accept cross-origin requests or custom-header-only requests
+            # for an action that stops the server and OS reminder helper.
             expected = f"http://{self.headers.get('Host', '')}"
-            if origin != expected:
+            if self.headers.get("Origin", "") != expected:
                 return self.json_response(403, {"error": "origin_denied"})
             if body != {"confirm": True}:
                 return self.json_response(400, {"error": "confirmation_required"})
-            if not reminder_status()["supported"]:
-                return self.json_response(409, {"error": "unsupported_platform"})
-            try:
-                from setup_background_reminders import install_mac, install_windows
-                import platform
-                if platform.system() == "Windows":
-                    install_windows()
-                elif platform.system() == "Darwin":
-                    install_mac()
-                else:
+            with REMINDER_STATE_LOCK:
+                if STOP_REQUESTED:
+                    return self.json_response(409, {"error": "app_stopping"})
+                try:
+                    from setup_background_reminders import uninstall_mac, uninstall_windows
+                    import platform
+                    # Disable the snapshot first, so a reminder already running
+                    # will observe the disabled state before another alert.
+                    write_snapshot({"enabled": False})
+                    system = platform.system()
+                    if system == "Windows" and reminder_status()["helper_installed"]:
+                        uninstall_windows()
+                    elif system == "Darwin":
+                        # Boot out by service label even if an older installation
+                        # lost its plist file while the LaunchAgent remained loaded.
+                        uninstall_mac()
+                    if reminder_status()["helper_installed"]:
+                        return self.json_response(503, {"error": "reminder_uninstall_failed"})
+                except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
+                    return self.json_response(503, {"error": "reminder_stop_failed"})
+                STOP_REQUESTED = True
+            self.json_response(200, {"stopped": True, "reminders_disabled": True})
+            # shutdown() must run from a thread other than serve_forever().
+            Thread(target=self.server.shutdown, daemon=True).start()
+            return
+        if self.path == "/api/reminders/install":
+            with REMINDER_STATE_LOCK:
+                if STOP_REQUESTED:
+                    return self.json_response(409, {"error": "app_stopping"})
+                # Installing a persistent background process is a separate, explicit
+                # OS change. Require a browser's same-origin Origin header and a
+                # confirmed UI action, never just the custom request header.
+                origin = self.headers.get("Origin", "")
+                expected = f"http://{self.headers.get('Host', '')}"
+                if origin != expected:
+                    return self.json_response(403, {"error": "origin_denied"})
+                if body != {"confirm": True}:
+                    return self.json_response(400, {"error": "confirmation_required"})
+                if not reminder_status()["supported"]:
                     return self.json_response(409, {"error": "unsupported_platform"})
-            except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-                return self.json_response(503, {"error": "reminder_install_failed"})
-            return self.json_response(200, {"installed": reminder_status()["helper_installed"]})
+                try:
+                    from setup_background_reminders import install_mac, install_windows
+                    import platform
+                    if platform.system() == "Windows":
+                        install_windows()
+                    elif platform.system() == "Darwin":
+                        install_mac()
+                    else:
+                        return self.json_response(409, {"error": "unsupported_platform"})
+                except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                    return self.json_response(503, {"error": "reminder_install_failed"})
+                return self.json_response(200, {"installed": reminder_status()["helper_installed"]})
         if self.path == "/api/reminders/sync":
-
-
-            try:
-                saved = write_snapshot(body)
-            except (ValueError, TypeError):
-                return self.json_response(400, {"error": "invalid_schedule"})
-            except OSError:
-                return self.json_response(503, {"error": "local_storage_unavailable"})
+            with REMINDER_STATE_LOCK:
+                if STOP_REQUESTED:
+                    return self.json_response(409, {"error": "app_stopping"})
+                try:
+                    saved = write_snapshot(body)
+                except (ValueError, TypeError):
+                    return self.json_response(400, {"error": "invalid_schedule"})
+                except OSError:
+                    return self.json_response(503, {"error": "local_storage_unavailable"})
             return self.json_response(200, {"saved": True, "enabled": saved["enabled"]})
         if self.path == "/api/interactions":
 

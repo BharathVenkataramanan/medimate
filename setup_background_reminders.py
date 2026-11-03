@@ -36,6 +36,10 @@ def install_windows():
 
 
 def uninstall_windows():
+    # Cancel an already-running instance before removing the persistent task.
+    # /End returns nonzero when nothing is running; that is not an error.
+    subprocess.run(['schtasks.exe', '/End', '/TN', WINDOWS_TASK],
+                   capture_output=True, check=False, creationflags=WINDOWS_CREATE_NO_WINDOW)
     subprocess.run(['schtasks.exe', '/Delete', '/TN', WINDOWS_TASK, '/F'],
                    check=True, creationflags=WINDOWS_CREATE_NO_WINDOW)
 
@@ -53,8 +57,15 @@ def install_mac():
 
 
 def uninstall_mac():
-    target = f'gui/{__import__("os").getuid()}'
-    subprocess.run(['/bin/launchctl', 'bootout', target, str(PLIST_FILE)], capture_output=True, check=False)
+    target = f'gui/{__import__("os").getuid()}/{AGENT_ID}'
+    result = subprocess.run(['/bin/launchctl', 'bootout', target],
+                            capture_output=True, check=False)
+    # A failed bootout is fine only when the service is genuinely absent.
+    check = subprocess.run(['/bin/launchctl', 'print', target],
+                           capture_output=True, check=False)
+    if check.returncode == 0:
+        raise subprocess.CalledProcessError(result.returncode or 1,
+                                            ['/bin/launchctl', 'bootout', target])
     PLIST_FILE.unlink(missing_ok=True)
 
 
