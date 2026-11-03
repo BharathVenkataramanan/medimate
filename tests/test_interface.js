@@ -78,7 +78,7 @@ for(const locale of ['ta','zh','ms']){
 }
 const calendarBlock=app.slice(app.indexOf('  let calendarExpanded=false;'),app.indexOf('  async function markCalendarDose'));
 assert(calendarBlock.includes('expandedCalendarDays'),'Calendar needs per-date expansion');
-assert(calendarBlock.includes("pill.title=`${x.name} · ${x.time} · ${t('status'"),'Calendar tooltips must use localized statuses');
+assert(calendarBlock.includes('pill.title=') && calendarBlock.includes('calendarStatus(x)') && calendarBlock.includes("t('noReminderScheduled')"),'Calendar tooltips must use localized statuses, including no reminder set');
 assert(calendarBlock.includes("dayButton.setAttribute('aria-label'"),'Calendar dates must have accessible labels');
 console.log(`Translation coverage: ${expected.length} shared keys in English, Tamil, Simplified Chinese and Malay; UI references and calendar labels verified`);
 

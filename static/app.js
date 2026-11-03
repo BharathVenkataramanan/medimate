@@ -46,15 +46,15 @@
     if(!safetyAudioEnabled||!safetyAudioContext||safetyAudioContext.state!=='running')return false;
     try{
       const now=safetyAudioContext.currentTime;
-      for(const [i,freq] of [740,988].entries()){
+      for(const [i,freq] of [740,988,880].entries()){
         const tone=safetyAudioContext.createOscillator(), gain=safetyAudioContext.createGain();
         tone.type='sine';tone.frequency.value=freq;
-        const start=now+i*.16;
+        const start=now+i*.22;
         gain.gain.setValueAtTime(.0001,start);
-        gain.gain.exponentialRampToValueAtTime(.033,start+.025);
-        gain.gain.exponentialRampToValueAtTime(.0001,start+.20);
+        gain.gain.exponentialRampToValueAtTime(.14,start+.035);
+        gain.gain.exponentialRampToValueAtTime(.0001,start+.32);
         tone.connect(gain);gain.connect(safetyAudioContext.destination);
-        tone.start(start);tone.stop(start+.22);
+        tone.start(start);tone.stop(start+.33);
       }
       return true;
     }catch(_){return false;}
@@ -67,17 +67,12 @@
   const elt = (tag, cls, text) => { const node=document.createElement(tag); if(cls) node.className=cls; if(text!==undefined) node.textContent=text; return node; };
   const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const localStamp = (d = new Date()) => `${localDate(d)}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
-  const activationTimes = med => {
-    // Existing pre-patch medicine records use their last edit time as a
-    // conservative fallback. No past-time reminder is fired immediately.
-    const changed = med.updatedAt ? new Date(med.updatedAt) : null;
-    const fallback = changed && Number.isFinite(changed.getTime()) ? localStamp(changed) : localStamp();
-    return Object.fromEntries((med.times||[]).map(time=>[time,med.reminderActivatedAt?.[time]||fallback]));
+  const activationFor = (med,time) => {
+    if(typeof med.reminderActivatedAt?.[time]==='string')return med.reminderActivatedAt[time];
+    const edited=med.updatedAt?new Date(med.updatedAt):null;
+    return edited&&Number.isFinite(edited.getTime())?localStamp(edited):localStamp();
   };
-  const reminderDueAfterActivation = (med,day,time) => {
-    const since=activationTimes(med)[time];
-    return !since || `${day}T${time}:00`>=since;
-  };
+  const reminderReady = (med,day,time) => `${day}T${time}:00`>=activationFor(med,time);
   const notifyKey = (mId,day,time) => `${mId}|${day}|${time}`;
   const schedule = window.MedimateSchedule;
   const sortTimes = times => [...new Set(times)].sort((a,b)=>a.localeCompare(b));
@@ -103,7 +98,7 @@
   };
   let toastTimer;
   let macEnabled=false, macInstalled=false, macSupported=false, macSyncTimer=null, macSyncBusy=false;
-  let appStopping=false, dueInterval=null;
+  let appStopping=false;
 
 
   function toast(message) {
@@ -153,7 +148,8 @@
     return {enabled,profiles:people.map(p=>({id:p.id,name:p.id==='self'?t('meLabel'):p.name,language:lang,
       medicines:allMedicines.filter(m=>(m.profileId||'self')===p.id && m.active!==false).map(m=>({
         id:m.id,name:m.name,quantity:m.quantity??null,doseUnit:m.doseUnit||'',notes:m.notes||'',startDate:m.startDate||m.updatedAt?.slice(0,10)||localDate(),
-        courseEndDate:m.courseEndDate||'',times:m.times,reminderActivatedAt:activationTimes(m),schedule:m.schedule||{frequency:'daily'},
+        courseEndDate:m.courseEndDate||'',times:m.times,
+        reminderActivatedAt:Object.fromEntries((m.times||[]).map(time=>[time,activationFor(m,time)])),schedule:m.schedule||{frequency:'daily'},
         scheduleVersions:m.scheduleVersions||[],periods:m.periods||[]
       }))
     })),taken:allDoses.filter(d=>(d.status==='taken'||!d.status)).slice(-800).map(d=>d.id)};
@@ -174,10 +170,7 @@
       const response=await fetch('/api/reminders/status');
       if(!response.ok)throw new Error('status');
       const status=await response.json();
-      macSupported=Boolean(status.supported);macInstalled=Boolean(status.helper_installed);
-      // An old service may have been removed by Stop or manually, while its
-      // snapshot is still enabled. Always offer setup instead of a dead toggle.
-      macEnabled=Boolean(status.enabled&&status.helper_installed);
+      macSupported=Boolean(status.supported);macInstalled=Boolean(status.helper_installed);macEnabled=Boolean(status.enabled&&status.helper_installed);
       updateMacStatus();
       if(macEnabled) scheduleMacSync();
     }catch(_){macSupported=false;updateMacStatus(t('macSyncFailed'));}
@@ -214,29 +207,7 @@
       await postMacPayload(newValue);
       macEnabled=newValue;
     }catch(_){failed=true;}
-    finally{macSyncBusy=false;if(!appStopping)updateMacStatus(failed?t('macSyncFailed'):undefined);}
-  }
-  async function testDesktopNotifications(){
-    if(appStopping)return;
-    const button=$('test-desktop-notifications');
-    const status=$('desktop-notification-status');
-    button.disabled=true;
-    status.textContent=t('desktopTestRequesting');
-    try{
-      const response=await fetch('/api/reminders/test',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','X-MediMate-Request':'1'},
-        body:JSON.stringify({confirm:true})
-      });
-      if(!response.ok)throw Error('desktop_test_failed');
-      const result=await response.json();
-      if(result.requested!==true)throw Error('desktop_test_failed');
-      status.textContent=t('desktopTestRequested');
-    }catch(_){
-      status.textContent=t('desktopTestFailed');
-    }finally{
-      button.disabled=false;
-    }
+    finally{macSyncBusy=false;updateMacStatus(failed?t('macSyncFailed'):undefined);}
   }
   async function stopMedimate(){
     if(appStopping||!window.confirm(t('stopAppConfirm')))return;
@@ -247,26 +218,20 @@
     clearTimeout(macSyncTimer);
     try{
       const response=await fetch('/api/app/stop',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','X-MediMate-Request':'1'},
+        method:'POST',headers:{'Content-Type':'application/json','X-MediMate-Request':'1'},
         body:JSON.stringify({confirm:true})
       });
       if(!response.ok)throw Error('stop_failed');
       const result=await response.json();
       if(result.stopped!==true||result.reminders_disabled!==true)throw Error('stop_incomplete');
       macEnabled=false;macInstalled=false;
-      if(dueInterval)clearInterval(dueInterval);
-      // Replace the interactive app with a clear stopped state. IndexedDB is
-      // intentionally retained; no medicines or dose confirmations are deleted.
       const screen=elt('main','stopped-app-screen');
       const card=elt('section','paper-card stopped-app-card');
-      card.append(elt('h1','',t('stopAppDoneTitle')),
-                  elt('p','',t('stopAppDoneDesc')));
+      card.append(elt('h1','',t('stopAppDoneTitle')),elt('p','',t('stopAppDoneDesc')));
       screen.append(card);
       document.body.replaceChildren(screen);
     }catch(_){
-      appStopping=false;
-      button.disabled=false;
+      appStopping=false;button.disabled=false;
       $('stop-medimate-status').textContent=t('stopAppFailed');
     }
   }
@@ -421,7 +386,8 @@
     $('stat-today').textContent=`${doses.filter(d=>d.done).length}/${doses.length}`;
     $('stat-flags').textContent=interactionCountText(interactionReport);
     const list=$('today-list');list.replaceChildren();
-    if(!doses.length){list.append(emptyState('emptyTodayTitle','emptyTodayText'));return;}
+    const unscheduled=medicines.filter(m=>schedule.isScheduled(m,localDate())&&schedule.timesOn(m,localDate()).length===0);
+    if(!doses.length&&!unscheduled.length){list.append(emptyState('emptyTodayTitle','emptyTodayText'));return;}
     doses.forEach(d=>{
       const row=elt('div','dose-row');
       row.append(elt('span','dose-time',d.time),elt('span','dose-pill','✿'));
@@ -429,6 +395,16 @@
       const btn=elt('button','tiny-button'+(d.done?' taken':''),t(d.done?'taken':'markTaken'));
       btn.type='button';btn.addEventListener('click',()=>toggleDose(d));row.append(btn);list.append(row);
     });
+    // An untimed medicine still belongs on the home schedule. Never invent a
+    // dose time, mark it missed, or create a reminder for an unset time.
+    for(const med of unscheduled){
+      const row=elt('div','dose-row dose-row-unscheduled');
+      row.append(elt('span','dose-time','—'),elt('span','dose-pill','✿'));
+      const info=elt('div','dose-info');
+      info.append(elt('strong','',med.name),elt('small','',[doseDescription(med),med.strength].filter(Boolean).join(' · ')||' '));
+      row.append(info,elt('small','reminder-unscheduled',t('noReminderScheduled')));
+      list.append(row);
+    }
   }
   function scheduleDescription(med) {
     const s=schedule.normalize(med.schedule);
@@ -996,12 +972,10 @@
     }
     const periods=existing?.periods?.length?existing.periods:[{start:existing?.startDate||start,end:null}];
     const rxnormId=selectedRxNorm?.name===name?selectedRxNorm.rxcui:null;
-    const clock=localStamp();
-    const oldActivations=existing?activationTimes(existing):{};
-    const rescheduled=existing && (JSON.stringify(schedule.normalize(existing.schedule))!==JSON.stringify(recurrence) || existing.startDate!==start || existing.courseEndDate!==end);
-    const reminderActivatedAt=Object.fromEntries(times.map(time=>[
-      time,existing && !rescheduled && (existing.times||[]).includes(time) ? (oldActivations[time]||clock) : clock
-    ]));
+    const createdAt=localStamp();
+    const scheduleChanged=existing && (JSON.stringify(schedule.normalize(existing.schedule))!==JSON.stringify(recurrence) || existing.startDate!==start || existing.courseEndDate!==end);
+    const reminderActivatedAt=Object.fromEntries(times.map(time=>[time,
+      existing && !scheduleChanged && (existing.times||[]).includes(time)?activationFor(existing,time):createdAt]));
     const med={id,profileId:currentProfile,name,rxnormId,reminderActivatedAt,strength:$('medicine-strength').value.trim(),quantity,doseUnit,times,notes:$('medicine-instructions').value.trim(),startDate:start,courseEndDate:end,schedule:recurrence,scheduleVersions,periods,active:true,updatedAt:new Date().toISOString()};
     await tx('medicines','readwrite',st=>st.put(med));closeMedicineSuggestions();$('medicine-dialog').close();toast(t('saved'));await refresh();
   }
@@ -1037,6 +1011,17 @@
     if(!year||month<1||month>12)return;
     const member=people.find(p=>p.id===currentProfile)||{id:'self',name:t('meLabel')};
     const data=window.MedimateReport.records(member,allMedicines,allDoses,year,month);
+    // Display medicines without a selected reminder time on the calendar,
+    // but do not turn these into adherence doses or missed-dose records.
+    const calendarEntries=[...data.entries];
+    for(const med of allMedicines.filter(m=>(m.profileId||'self')===currentProfile)){
+      for(let day=1;day<=new Date(year,month,0).getDate();day++){
+        const date=`${chosenMonth}-${String(day).padStart(2,'0')}`;
+        if(schedule.isScheduled(med,date)&&schedule.timesOn(med,date).length===0)
+          calendarEntries.push({medId:med.id,name:med.name,date,time:'',status:'Unscheduled'});
+      }
+    }
+    const calendarStatus=x=>x.status==='Unscheduled'?t('noReminderScheduled'):t('status'+(x.status==='Not logged'?'NotLogged':x.status));
     const headers=$('calendar-week-head');headers.replaceChildren();
     for(const key of ['mon','tue','wed','thu','fri','sat','sun'])headers.append(elt('span','',t('weekday'+key)));
     const calendarPage=$('page-adherence');
@@ -1054,14 +1039,14 @@
       cell.id='calendar-day-'+day;
       const dayButton=elt('button','calendar-day-button',String(n));dayButton.type='button';
       cell.append(dayButton);
-      const daily=data.entries.filter(x=>x.date===day).sort((a,b)=>{
+      const daily=calendarEntries.filter(x=>x.date===day).sort((a,b)=>{
         const rank={'Missed':0,'Taken':1,'Not logged':2,'Upcoming':3};
         return (rank[a.status]??4)-(rank[b.status]??4)||a.time.localeCompare(b.time);
       });
       for(const x of (expandedDay?daily:daily.slice(0,5))){
         const status=x.status==='Missed'?'pill-missed':x.status==='Taken'?'pill-taken':'pill-unconfirmed';
-        const pill=elt('span','calendar-med-name '+status,`${x.name} · ${t('status'+(x.status==='Not logged'?'NotLogged':x.status))}`);
-        pill.title=`${x.name} · ${x.time} · ${t('status'+(x.status==='Not logged'?'NotLogged':x.status))}`;
+        const pill=elt('span','calendar-med-name '+status,`${x.name} · ${calendarStatus(x)}`);
+        pill.title=`${x.name}${x.time?' · '+x.time:''} · ${calendarStatus(x)}`;
         cell.append(pill);
       }
       if(!calendarExpanded && daily.length>5){
@@ -1085,19 +1070,19 @@
         });
         cell.append(more);
       }
-      dayButton.setAttribute('aria-label',[day,...daily.map(x=>`${x.name}, ${x.time}, ${t('status'+(x.status==='Not logged'?'NotLogged':x.status))}`)].join('; ').slice(0,700));
+      dayButton.setAttribute('aria-label',[day,...daily.map(x=>`${x.name}, ${x.time||t('noReminderScheduled')}, ${calendarStatus(x)}`)].join('; ').slice(0,700));
       cell.addEventListener('click',()=>{chosenDay=day;renderAdherence();});
       root.append(cell);
     }
     $('day-log-title').textContent=`${t('dayTitle')} · ${chosenDay}`;
     const list=$('day-log-list');list.replaceChildren();
-    const selected=data.entries.filter(x=>x.date===chosenDay);
+    const selected=calendarEntries.filter(x=>x.date===chosenDay);
     if(!selected.length){list.append(elt('p','med-notes',t('noScheduledDoses')));return;}
     for(const x of selected){
       const row=elt('div','day-dose-row');const copy=elt('div');
-      copy.append(elt('strong','',x.name+' · '+x.time),elt('small','dose-state '+(x.status==='Missed'?'state-missed':x.status==='Taken'?'state-taken':'state-neutral'),t('status'+(x.status==='Not logged'?'NotLogged':x.status))));row.append(copy);
+      copy.append(elt('strong','',x.name+(x.time?' · '+x.time:'')),elt('small','dose-state '+(x.status==='Missed'?'state-missed':x.status==='Taken'?'state-taken':'state-neutral'),calendarStatus(x)));row.append(copy);
       const actions=elt('div','day-actions');const med=allMedicines.find(m=>(m.profileId||'self')===currentProfile&&m.id===x.medId);
-      if(med){
+      if(med&&x.time){
         for(const [status,key] of [['taken','statusTaken'],['missed','statusMissed']]){
           const btn=elt('button','tiny-button',t(key));btn.disabled=x.status.toLowerCase()===status;
           btn.addEventListener('click',()=>markCalendarDose(med,chosenDay,x.time,status));actions.append(btn);
@@ -1160,7 +1145,7 @@
     if(typeof appStopping!=='undefined'&&appStopping)return;
     const now=new Date(), minutes=now.getHours()*60+now.getMinutes(), today=localDate();
     const doses=todayDoses();
-    const overdue=doses.filter(d=>!d.done && reminderDueAfterActivation(d.med,today,d.time) && minutes>=Number(d.time.slice(0,2))*60+Number(d.time.slice(3,5)));
+    const overdue=doses.filter(d=>!d.done && reminderReady(d.med,today,d.time) && minutes>=Number(d.time.slice(0,2))*60+Number(d.time.slice(3,5)));
     const banner=$('due-reminder-banner');
     if(banner){
       const item=overdue[0];
@@ -1379,7 +1364,6 @@
     $('chat-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('chat-form').requestSubmit();}});
     document.querySelectorAll('[data-prompt]').forEach(el=>el.addEventListener('click',()=>{$('chat-input').value=t(el.dataset.prompt);$('chat-input').focus();}));
     $('mac-reminders-toggle').addEventListener('click',toggleMacReminders);
-    $('test-desktop-notifications').addEventListener('click',testDesktopNotifications);
     $('stop-medimate').addEventListener('click',stopMedimate);
     $('test-notifications').addEventListener('click',async()=>{
       unlockSafetyAudio();
@@ -1406,7 +1390,7 @@
       // A previous version cached the application shell and could show an old UI.
       navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{});
     }
-    dueInterval=setInterval(checkDue,20000);setTimeout(checkDue,1200);
+    setInterval(checkDue,20000);setTimeout(checkDue,1200);
   }
   document.addEventListener('DOMContentLoaded',init);
 })();

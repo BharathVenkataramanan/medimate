@@ -7,9 +7,6 @@ import sys
 
 from local_reminders import DATA_FILE, STATE_FILE, SUPPORT, read_json, save_json_private, outstanding_events, should_repeat
 
-# The helper runs via pythonw.exe, but a console-subsystem child such as
-# powershell.exe will still flash a window unless its creation flag is set.
-# Numeric fallback also makes this Windows-only flag verifiable on CI hosts.
 CREATE_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
 
 POWERSHELL = r'''
@@ -22,13 +19,16 @@ try {
   $notify.BalloonTipTitle = $env:MEDIMATE_NOTIFICATION_TITLE
   $notify.BalloonTipText = $env:MEDIMATE_NOTIFICATION_MESSAGE
   $notify.BalloonTipIcon = [System.Windows.Forms.ToolTipIcon]::Info
-  # Allow Windows Explorer to register the tray icon before requesting
-  # the balloon. A hidden console does not mean a hidden notification.
   [System.Windows.Forms.Application]::DoEvents()
-  Start-Sleep -Milliseconds 400
-  [System.Media.SystemSounds]::Asterisk.Play()
+  Start-Sleep -Milliseconds 350
   $notify.ShowBalloonTip(10000)
-  $until = (Get-Date).AddSeconds(11)
+  # A single quiet system ping was easy to miss. Use three clearly audible
+  # Windows notification sounds, without opening a PowerShell console.
+  for ($i=0; $i -lt 3; $i++) {
+    [System.Media.SystemSounds]::Exclamation.Play()
+    Start-Sleep -Milliseconds 850
+  }
+  $until = (Get-Date).AddSeconds(8)
   while ((Get-Date) -lt $until) {
     [System.Windows.Forms.Application]::DoEvents()
     Start-Sleep -Milliseconds 100
@@ -45,7 +45,7 @@ def notify_windows(body, title='Medication reminder'):
     env['MEDIMATE_NOTIFICATION_TITLE'] = title
     env['MEDIMATE_NOTIFICATION_MESSAGE'] = body
     subprocess.run(['powershell.exe', '-NoLogo', '-NoProfile', '-NonInteractive', '-Sta', '-Command', POWERSHELL],
-                   env=env, capture_output=True, check=True, timeout=30,
+                   env=env, capture_output=True, check=True, timeout=25,
                    creationflags=CREATE_NO_WINDOW)
 
 

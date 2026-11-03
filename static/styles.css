@@ -333,8 +333,8 @@ a:focus-visible,summary:focus-visible,.calendar-day-button:focus-visible,.calend
   .due-reminder-action{margin-left:auto}
 }
 
-/* Intentional shutdown keeps local medication history but removes active controls. */
+/* Intentional shutdown state, matching the original minimal Settings cards. */
 .stopped-app-screen{min-height:100vh;display:grid;place-items:center;background:var(--paper);padding:24px}
-.stopped-app-card{width:min(540px,100%);padding:36px;text-align:center;border-radius:16px}
-.stopped-app-card h1{margin:0 0 12px;font-size:28px;font-weight:610}
-.stopped-app-card p{margin:0;color:#697b70;font-size:14px;line-height:1.7}
+.stopped-app-card{width:min(540px,100%);padding:35px;text-align:center;border-radius:16px}
+.stopped-app-card h1{font-size:27px;font-weight:600;margin:0 0 12px}
+.stopped-app-card p{font-size:14px;color:#697b70;line-height:1.7;margin:0}
