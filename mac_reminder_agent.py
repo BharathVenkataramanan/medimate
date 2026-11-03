@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 from datetime import datetime
-import fcntl
 import platform
 import subprocess
 import sys
@@ -17,6 +16,7 @@ end run'''
 def run_once(now=None, notify=None):
     if platform.system() != 'Darwin' and notify is None:
         return 2
+    import fcntl  # macOS-only file locking; keep module importable in cross-platform tests.
     now = now or datetime.now()
     snapshot = read_json(DATA_FILE, {})
     if not snapshot.get('enabled'):
