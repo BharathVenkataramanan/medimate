@@ -4,6 +4,7 @@ from datetime import datetime
 import platform
 import subprocess
 import sys
+from pathlib import Path
 
 from local_reminders import DATA_FILE, STATE_FILE, SUPPORT, read_json, save_json_private, outstanding_events, should_repeat
 
@@ -13,10 +14,23 @@ APPLESCRIPT = '''on run argv
 end run'''
 
 
+def play_audible_chime():
+    # Apple's notification sound can be very quiet. Play two standard macOS
+    # alert sounds at maximum app volume without opening Terminal.
+    sound = Path('/System/Library/Sounds/Funk.aiff')
+    if not sound.is_file():
+        sound = Path('/System/Library/Sounds/Glass.aiff')
+    if not sound.is_file():
+        return
+    for _ in range(2):
+        subprocess.run(['/usr/bin/afplay', '-v', '1.0', str(sound)],
+                       capture_output=True, check=False, timeout=7)
+
+
 def run_once(now=None, notify=None):
     if platform.system() != 'Darwin' and notify is None:
         return 2
-    import fcntl  # macOS-only file locking; keep module importable in cross-platform tests.
+    import fcntl
     now = now or datetime.now()
     snapshot = read_json(DATA_FILE, {})
     if not snapshot.get('enabled'):
@@ -53,6 +67,7 @@ def run_once(now=None, notify=None):
                 else:
                     subprocess.run(['osascript', '-e', APPLESCRIPT, body, 'Medication reminder'],
                                    check=True, capture_output=True, timeout=15)
+                    play_audible_chime()
             except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
                 save_json_private(STATE_FILE, {'sent': sent, 'pending': list(valid)})
                 return 1
@@ -70,6 +85,7 @@ def test_notification():
         subprocess.run(['osascript', '-e', APPLESCRIPT,
                         'If you see this, the Mac reminder helper can display notifications.',
                         'MediMate test'], check=True, timeout=15)
+        play_audible_chime()
     except (subprocess.CalledProcessError, OSError, subprocess.TimeoutExpired):
         print('Notification failed. Check macOS notification permissions.', file=sys.stderr)
         return 1

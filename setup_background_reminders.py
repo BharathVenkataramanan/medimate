@@ -10,7 +10,7 @@ from local_reminders import PLIST_FILE, WINDOWS_TASK, status
 
 ROOT = Path(__file__).resolve().parent
 AGENT_ID = 'org.medimate.local-reminders'
-WINDOWS_CREATE_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
+WINDOWLESS = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
 
 
 def python_interpreter():
@@ -18,7 +18,7 @@ def python_interpreter():
     if platform.system() == 'Windows':
         pythonw = exe.with_name('pythonw.exe')
         if not pythonw.is_file():
-            raise FileNotFoundError('pythonw.exe is required for silent Windows background reminders')
+            raise FileNotFoundError('Silent background reminders require pythonw.exe')
         return pythonw
     return exe
 
@@ -32,16 +32,14 @@ def windows_task_command():
 def install_windows():
     subprocess.run(['schtasks.exe', '/Create', '/SC', 'MINUTE', '/MO', '1', '/IT',
                     '/TN', WINDOWS_TASK, '/TR', windows_task_command(), '/F'],
-                   check=True, creationflags=WINDOWS_CREATE_NO_WINDOW)
+                   check=True, creationflags=WINDOWLESS)
 
 
 def uninstall_windows():
-    # Cancel an already-running instance before removing the persistent task.
-    # /End returns nonzero when nothing is running; that is not an error.
     subprocess.run(['schtasks.exe', '/End', '/TN', WINDOWS_TASK],
-                   capture_output=True, check=False, creationflags=WINDOWS_CREATE_NO_WINDOW)
+                   check=False, capture_output=True, creationflags=WINDOWLESS)
     subprocess.run(['schtasks.exe', '/Delete', '/TN', WINDOWS_TASK, '/F'],
-                   check=True, creationflags=WINDOWS_CREATE_NO_WINDOW)
+                   check=True, creationflags=WINDOWLESS)
 
 
 def install_mac():
@@ -58,14 +56,10 @@ def install_mac():
 
 def uninstall_mac():
     target = f'gui/{__import__("os").getuid()}/{AGENT_ID}'
-    result = subprocess.run(['/bin/launchctl', 'bootout', target],
-                            capture_output=True, check=False)
-    # A failed bootout is fine only when the service is genuinely absent.
-    check = subprocess.run(['/bin/launchctl', 'print', target],
-                           capture_output=True, check=False)
-    if check.returncode == 0:
-        raise subprocess.CalledProcessError(result.returncode or 1,
-                                            ['/bin/launchctl', 'bootout', target])
+    subprocess.run(['/bin/launchctl', 'bootout', target], capture_output=True, check=False)
+    checked = subprocess.run(['/bin/launchctl', 'print', target], capture_output=True, check=False)
+    if checked.returncode == 0:
+        raise OSError('macOS reminder LaunchAgent is still running')
     PLIST_FILE.unlink(missing_ok=True)
 
 
