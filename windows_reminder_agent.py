@@ -7,6 +7,8 @@ import sys
 
 from local_reminders import DATA_FILE, STATE_FILE, SUPPORT, read_json, save_json_private, outstanding_events, should_repeat
 
+CREATE_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
+
 POWERSHELL = r'''
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -17,9 +19,16 @@ try {
   $notify.BalloonTipTitle = $env:MEDIMATE_NOTIFICATION_TITLE
   $notify.BalloonTipText = $env:MEDIMATE_NOTIFICATION_MESSAGE
   $notify.BalloonTipIcon = [System.Windows.Forms.ToolTipIcon]::Info
-  [System.Media.SystemSounds]::Asterisk.Play()
-  $notify.ShowBalloonTip(8000)
-  $until = (Get-Date).AddSeconds(9)
+  [System.Windows.Forms.Application]::DoEvents()
+  Start-Sleep -Milliseconds 350
+  $notify.ShowBalloonTip(10000)
+  # A single quiet system ping was easy to miss. Use three clearly audible
+  # Windows notification sounds, without opening a PowerShell console.
+  for ($i=0; $i -lt 3; $i++) {
+    [System.Media.SystemSounds]::Exclamation.Play()
+    Start-Sleep -Milliseconds 850
+  }
+  $until = (Get-Date).AddSeconds(8)
   while ((Get-Date) -lt $until) {
     [System.Windows.Forms.Application]::DoEvents()
     Start-Sleep -Milliseconds 100
@@ -35,8 +44,9 @@ def notify_windows(body, title='Medication reminder'):
     env = os.environ.copy()
     env['MEDIMATE_NOTIFICATION_TITLE'] = title
     env['MEDIMATE_NOTIFICATION_MESSAGE'] = body
-    subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', POWERSHELL],
-                   env=env, capture_output=True, check=True, timeout=15)
+    subprocess.run(['powershell.exe', '-NoLogo', '-NoProfile', '-NonInteractive', '-Sta', '-Command', POWERSHELL],
+                   env=env, capture_output=True, check=True, timeout=25,
+                   creationflags=CREATE_NO_WINDOW)
 
 
 def run_once(now=None, notify=None):
