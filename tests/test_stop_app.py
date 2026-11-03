@@ -62,8 +62,7 @@ class ExplicitStopTests(unittest.TestCase):
         with patch.object(server, 'STOP_REQUESTED', False), \
              patch('platform.system', return_value='Darwin'), \
              patch.object(server, 'write_snapshot') as write, \
-             patch.object(server, 'reminder_status', side_effect=[
-                 {'helper_installed': True}, {'helper_installed': False}]), \
+             patch.object(server, 'reminder_status', return_value={'helper_installed': False}), \
              patch.object(setup, 'uninstall_mac') as uninstall, \
              patch.object(server, 'Thread') as thread:
             handler.do_POST()
