@@ -23,7 +23,7 @@ class DesktopTestEndpointTests(unittest.TestCase):
 
     def test_windows_native_sender_called(self):
         h=SyntheticHandler('/api/reminders/test', {'confirm':True})
-        with patch('platform.system',return_value='Windows'), \\
+        with patch('platform.system',return_value='Windows'), \
              patch('windows_reminder_agent.notify_windows') as notify:
             h.do_POST()
         self.assertEqual(h.status_code,200)
@@ -32,7 +32,7 @@ class DesktopTestEndpointTests(unittest.TestCase):
 
     def test_mac_native_sender_called(self):
         h=SyntheticHandler('/api/reminders/test', {'confirm':True})
-        with patch('platform.system',return_value='Darwin'), \\
+        with patch('platform.system',return_value='Darwin'), \
              patch('mac_reminder_agent.test_notification',return_value=0) as notify:
             h.do_POST()
         self.assertEqual(h.status_code,200)
@@ -40,7 +40,7 @@ class DesktopTestEndpointTests(unittest.TestCase):
 
     def test_failed_native_sender_reports_failure(self):
         h=SyntheticHandler('/api/reminders/test', {'confirm':True})
-        with patch('platform.system',return_value='Windows'), \\
+        with patch('platform.system',return_value='Windows'), \
              patch('windows_reminder_agent.notify_windows',side_effect=OSError('unavailable')):
             h.do_POST()
         self.assertEqual(h.status_code,503)
